@@ -10,6 +10,7 @@ import { Analytics } from "./Analytics.tsx";
 import { Insights } from "./Insights.tsx";
 import { Candidates } from "./Candidates.tsx";
 import { Share } from "./Share.tsx";
+import { Chip, LinkButton, T } from "./ui.tsx";
 
 /**
  * Developer mode, reached at #/dev. Sign in by magic link; the database’s
@@ -260,13 +261,12 @@ function Workbench({
     setDecisions(await store.decisions());
   }
 
-  const chip = (on: boolean) =>
-    ["rounded-md border px-2.5 py-1 text-[13px] leading-snug transition-colors", on ? "border-ink bg-chip text-ink" : "border-line text-mute hover:bg-chip"].join(" ");
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="min-h-dvh">
       <header className="border-b border-line">
-        <div className="mx-auto flex max-w-[46rem] flex-wrap items-center gap-x-4 gap-y-2 px-6 py-3">
+        <div className="mx-auto flex max-w-[46rem] flex-wrap items-center gap-x-5 gap-y-2 px-6 py-3">
           <nav aria-label="Mode" className="flex rounded-md border border-line p-0.5 text-[13px]">
             <a href="#/" className="rounded px-2.5 py-1 text-mute hover:text-ink">
               Survey
@@ -275,17 +275,17 @@ function Workbench({
               Developer
             </span>
           </nav>
-          <span className="hidden text-[13px] text-mute sm:inline">{SURVEY_TITLE}</span>
+          <span className="hidden text-[13px] text-mute md:inline">{SURVEY_TITLE}</span>
           <span className="flex-1" />
           {role === "owner" && (
             <button type="button" onClick={() => setShare(true)} className="rounded-md border border-line px-3 py-1 text-[13px] text-ink hover:bg-chip">
               Share
             </button>
           )}
-          <span className="text-[13px] text-mute">
+          <span className="max-w-[16rem] truncate text-[13px] text-mute" title={me}>
             {me} · {role}
           </span>
-          <button type="button" onClick={onSignOut} className="text-[13px] text-mute underline hover:text-ink">
+          <button type="button" onClick={onSignOut} className="text-[13px] text-mute underline underline-offset-2 hover:text-ink">
             Sign out
           </button>
         </div>
@@ -308,41 +308,49 @@ function Workbench({
       </header>
 
       <section aria-label="Selection" className="border-b border-line bg-chip/60">
-        <div className="mx-auto max-w-[46rem] space-y-2 px-6 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-20 text-[12px] text-mute">Version</span>
-            {[QUESTIONS_VERSION, ...versions.filter((v) => v !== QUESTIONS_VERSION)].map((v) => (
-              <button key={v} type="button" aria-pressed={filter.version === v} onClick={() => setFilter({ ...filter, version: v })} className={chip(filter.version === v)}>
-                {v === QUESTIONS_VERSION ? `${v} (current)` : String(v)}
-              </button>
-            ))}
-            <button type="button" aria-pressed={filter.version === "all"} onClick={() => setFilter({ ...filter, version: "all" })} className={chip(filter.version === "all")}>
-              All
-            </button>
-            {filter.version === "all" && <span className="text-[12px] text-mute">Options differ between versions; answers to options that no longer exist are reported, not merged.</span>}
+        <div className="mx-auto max-w-[46rem] px-6 py-3">
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="text-[14px] text-ink">Showing {scope}.</p>
+            <LinkButton onClick={() => setEditing(!editing)} aria-expanded={editing}>
+              {editing ? "Done" : "Change selection"}
+            </LinkButton>
+            <span className={T.meta}>Every number and export on these tabs uses this selection.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-20 text-[12px] text-mute">Who</span>
-            {Q1.kind === "checkbox" &&
-              Q1.options.map((o) => (
-                <button key={o.key} type="button" aria-pressed={filter.roles.has(o.key)} onClick={() => toggle("roles", o.key)} className={chip(filter.roles.has(o.key))}>
-                  {o.label}
-                </button>
-              ))}
-            <span className="text-[12px] text-mute">A respondent may hold several roles, so role groups can overlap.</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-20 text-[12px] text-mute">Experience</span>
-            {Q2.kind === "single" &&
-              Q2.options.map((o) => (
-                <button key={o.key} type="button" aria-pressed={filter.experience.has(o.key)} onClick={() => toggle("experience", o.key)} className={chip(filter.experience.has(o.key))}>
-                  {o.label}
-                </button>
-              ))}
-          </div>
-          <p className="text-[13px] text-ink">
-            Showing {scope}. Every number, chart and export on these tabs uses this selection.
-          </p>
+          {editing && (
+            <div className="mt-3 space-y-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`${T.meta} w-20`}>Version</span>
+                {[QUESTIONS_VERSION, ...versions.filter((v) => v !== QUESTIONS_VERSION)].map((v) => (
+                  <Chip key={v} on={filter.version === v} onClick={() => setFilter({ ...filter, version: v })}>
+                    {v === QUESTIONS_VERSION ? `${v} (current)` : String(v)}
+                  </Chip>
+                ))}
+                <Chip on={filter.version === "all"} onClick={() => setFilter({ ...filter, version: "all" })}>
+                  All
+                </Chip>
+                {filter.version === "all" && <span className={T.meta}>Options differ between versions; answers to options that no longer exist are reported, not merged.</span>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`${T.meta} w-20`}>Who</span>
+                {Q1.kind === "checkbox" &&
+                  Q1.options.map((o) => (
+                    <Chip key={o.key} on={filter.roles.has(o.key)} onClick={() => toggle("roles", o.key)}>
+                      {o.label}
+                    </Chip>
+                  ))}
+                <span className={T.meta}>A respondent may hold several roles, so role groups can overlap.</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`${T.meta} w-20`}>Experience</span>
+                {Q2.kind === "single" &&
+                  Q2.options.map((o) => (
+                    <Chip key={o.key} on={filter.experience.has(o.key)} onClick={() => toggle("experience", o.key)}>
+                      {o.label}
+                    </Chip>
+                  ))}
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

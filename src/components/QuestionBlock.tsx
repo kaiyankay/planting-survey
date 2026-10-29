@@ -23,12 +23,12 @@ export function QuestionBlock({ question, answer, onChange, showHint, desktop, n
   const hint = showHint ? missingHint(question) : "";
   return (
     <section id={`block-${question.id}`} aria-labelledby={`title-${question.id}`} className="scroll-mt-16">
-      <h3 id={`title-${question.id}`} className="text-[18px] font-semibold leading-snug text-ink">
+      <h3 id={`title-${question.id}`} className="text-[17px] font-semibold leading-snug text-ink">
         <span className="mr-2 font-medium tabular-nums text-mute">{number}</span>
         {question.text}
       </h3>
       {question.help && (
-        <p className="mt-1.5 text-[15px] text-ink">
+        <p className="mt-1.5 text-[14px] text-ink">
           <span className="help">{question.help}</span>
         </p>
       )}
@@ -50,7 +50,7 @@ export function QuestionBlock({ question, answer, onChange, showHint, desktop, n
         )}
       </div>
       {hint && (
-        <p role="alert" className="mt-2 text-[14px] text-hint">
+        <p role="alert" className="mt-2 text-[13px] text-hint">
           {hint}
         </p>
       )}

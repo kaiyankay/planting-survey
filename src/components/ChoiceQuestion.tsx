@@ -14,11 +14,11 @@ type Props = {
 const LETTERS = "ABCDEFGHIJKLMNOP";
 
 export const inputClass =
-  "w-full rounded-md border border-line bg-field px-3 py-2 text-[16px] leading-snug transition-colors focus:border-ink";
+  "w-full rounded-md border border-line bg-field px-3 py-2 text-[15px] leading-snug transition-colors focus:border-ink";
 
 /** One option row: key block on the left, text on the right. Shared by every choice-type question. */
 export const rowClass =
-  "flex min-h-11 w-full items-start gap-3 rounded-md px-2 py-2 text-left text-[16px] leading-snug transition-colors duration-100";
+  "flex min-h-10 w-full items-start gap-3 rounded-md px-2 py-1.5 text-left text-[15px] leading-snug transition-colors duration-100";
 
 export function Check() {
   return (

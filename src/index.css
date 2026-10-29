@@ -1,0 +1,141 @@
+@import "tailwindcss";
+
+/*
+  Plain, document-like form: white page, near-black text, hairline borders.
+  One accent (a leaf green) for the progress line and the highlighted help text.
+*/
+:root {
+  --bg: #ffffff;
+  --ink: #37352f;
+  --mute: #787774;
+  --line: #e3e2de;
+  --field: #ffffff;
+  --chip: #f4f4f2;
+  --accent: #5a9a3c;
+  --mark: #e5f1d4;
+  --fill: #37352f;
+  --on-fill: #ffffff;
+  --hint: #b3261e;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #191919;
+    --ink: #e6e6e4;
+    --mute: #9b9b98;
+    --line: #353535;
+    --field: #202020;
+    --chip: #262626;
+    --accent: #9ccc65;
+    --mark: #33411f;
+    --fill: #e6e6e4;
+    --on-fill: #191919;
+    --hint: #f2a79f;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-ink: var(--ink);
+  --color-mute: var(--mute);
+  --color-line: var(--line);
+  --color-field: var(--field);
+  --color-chip: var(--chip);
+  --color-accent: var(--accent);
+  --color-mark: var(--mark);
+  --color-fill: var(--fill);
+  --color-on-fill: var(--on-fill);
+  --color-hint: var(--hint);
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+}
+
+/* Italic help text on a pale highlight, like a marker on paper. */
+.help {
+  display: inline;
+  font-style: italic;
+  background: var(--mark);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  padding: 0 0.2em;
+}
+
+/* The key block at the left of every option row: outlined by default, filled when on. */
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  flex: none;
+  transition: background-color 100ms, border-color 100ms, color 100ms;
+}
+
+.key-on {
+  border-color: var(--fill);
+  background: var(--fill);
+  color: var(--on-fill);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.screen-enter {
+  animation: rise 320ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-enter {
+    animation-duration: 1ms;
+  }
+  * {
+    transition-duration: 1ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@layer base {
+  input,
+  textarea,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--mute);
+    opacity: 0.8;
+  }
+}

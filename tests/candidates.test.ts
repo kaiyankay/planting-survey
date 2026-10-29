@@ -5,7 +5,7 @@ import { buildInsights, REQUIREMENTS, requirementsExport } from "../src/dev/insi
 import type { ResponseRow } from "../src/lib/answers.ts";
 import type { Decision, Review } from "../src/dev/data.ts";
 
-const row = (i: number, answers: ResponseRow["answers"], version = 3): ResponseRow => ({
+const row = (i: number, answers: ResponseRow["answers"], version = 4): ResponseRow => ({
   id: `r${i}`,
   submitted_at: `2026-10-2${i}T00:00:00Z`,
   duration_seconds: 100,
@@ -65,12 +65,12 @@ test("circular merges are detected and never hang", () => {
 });
 
 test("candidate export separates respondent-provided from researcher-reviewed", () => {
-  const out = candidatesExport(buildCandidates(rows, []), unassignedNotes(rows), { questions_version: 3, responses: 4, filter: { version: 3 } });
+  const out = candidatesExport(buildCandidates(rows, []), unassignedNotes(rows), { questions_version: 4, responses: 4, filter: { version: 4 } });
   const fern = out.candidates.find((c) => c.key === "sword fern")!;
   assert.equal(fern.respondent_provided.sources[0].attached_note, "Sword fern for dry shade.");
   assert.equal(fern.researcher_reviewed.status, "candidate");
   assert.equal(out.unassigned_notes.length, 2);
-  assert.deepEqual(out.filter, { version: 3 });
+  assert.deepEqual(out.filter, { version: 4 });
 });
 
 test("requirement catalogue has unique ids and only known evidence", () => {
@@ -91,7 +91,7 @@ test("insights keep evidence, suggestion and decision apart; Q7 stays a distribu
   assert.equal(q7evidence.n, 2, "not-applicable respondent excluded from the row denominator");
   const undecided = attributes.requirements.find((r) => r.id === "attr.spacing")!;
   assert.equal(undecided.decision.status, "proposed");
-  const out = requirementsExport(rows, decisions, { version: 3 });
+  const out = requirementsExport(rows, decisions, { version: 4 });
   const exported = out.dimensions.flatMap((d) => d.requirements).find((r) => r.id === "attr.hardiness_zone")!;
   assert.equal(exported.research_decision.status, "include");
   assert.equal(exported.research_decision.rationale, "Needed for any Vancouver list");

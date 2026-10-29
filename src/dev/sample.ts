@@ -63,7 +63,7 @@ export function sampleRows(n: number): ResponseRow[] {
           answers[q.id] = i % 11 === 3 ? { na: "yes" } : Object.fromEntries(q.rows.map((r) => [r.key, pick(q.columns).key]));
           break;
         case "textlist": {
-          const k = 2 + Math.floor(rand() * 4);
+          const k = 3 + Math.floor(rand() * 3);
           const names = new Set<string>();
           while (names.size < k) names.add(pick(PLANTS));
           answers[q.id] = [...names];
@@ -71,8 +71,8 @@ export function sampleRows(n: number): ResponseRow[] {
         }
         case "plantnote": {
           const listed = (answers[q.sourceQuestion] as string[]) ?? [];
-          const text = rand() < 0.65 ? pick(NOTES) : "";
-          answers[q.id] = legacy ? text : { plant: text ? listed[0] : "", text };
+          const text = legacy && rand() < 0.4 ? "" : pick(NOTES);
+          answers[q.id] = legacy ? text : { plant: listed[0], text };
           break;
         }
       }
@@ -81,7 +81,7 @@ export function sampleRows(n: number): ResponseRow[] {
       id: `sample-${i + 1}`,
       submitted_at: new Date(Date.UTC(2026, 9, 20 + Math.floor(i / 4), 9 + (i % 9))).toISOString(),
       duration_seconds: 120 + Math.floor(rand() * 200),
-      questions_version: legacy ? 2 : 3,
+      questions_version: legacy ? 2 : 4,
       answers,
     });
   }

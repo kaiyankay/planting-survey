@@ -16,12 +16,17 @@
  *
  * Version 3 (2026-10-29): q15 asks the respondent to pick which of their q14
  * plants the note is about; stored as { plant, text } instead of a string.
+ *
+ * Version 4 (2026-10-29): q2 option "both" replaced by "personal" (personal
+ * planting or gardening experience); q14 and q15 became required (at least
+ * three plants; a chosen plant with a note); q4 and q16 lost their
+ * three-selection cap; q10 reworded.
  */
 
-export const QUESTIONS_VERSION = 3;
+export const QUESTIONS_VERSION = 4;
 
 /** Versions whose answers the developer mode knows how to read. */
-export const KNOWN_VERSIONS = [1, 2, 3] as const;
+export const KNOWN_VERSIONS = [1, 2, 3, 4] as const;
 
 export const SURVEY_TITLE = "How you work with plants";
 
@@ -88,8 +93,9 @@ export type TextListQuestion = {
   text: string;
   help?: string;
   count: number;
+  /** Fewest non-empty entries needed for the answer to count. */
+  min: number;
   labelPrefix: string;
-  optional: true;
 };
 
 /** A note about one plant chosen from the respondent’s own list in another question. */
@@ -102,7 +108,6 @@ export type PlantNoteQuestion = {
   sourceQuestion: string;
   pickLabel: string;
   maxLength: number;
-  optional: true;
 };
 
 export type Question = CheckboxQuestion | SingleQuestion | GridQuestion | TextListQuestion | PlantNoteQuestion;
@@ -141,7 +146,7 @@ export const SECTIONS: Section[] = [
           { key: "none", label: "None yet" },
           { key: "academic", label: "Academic or studio projects only" },
           { key: "professional", label: "Professional projects only" },
-          { key: "both", label: "Both academic and professional projects" },
+          { key: "personal", label: "Personal planting or gardening experience" },
         ],
       },
     ],
@@ -192,8 +197,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q4",
         text: "Which measurements do you use when designing a planting?",
-        help: "Choose up to 3",
-        max: 3,
+        help: "Choose all that apply",
         options: [
           { key: "height", label: "Mature height" },
           { key: "spread", label: "Mature spread" },
@@ -286,7 +290,7 @@ export const SECTIONS: Section[] = [
       {
         kind: "checkbox",
         id: "q10",
-        text: "If recording your own plant knowledge were easy, what would you want to save?",
+        text: "If recording your own plant knowledge were easy, which types of information would you most want to save?",
         help: "Choose up to 3",
         max: 3,
         options: [
@@ -304,8 +308,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q16",
         text: "If a database includes someone’s observation or experience with a plant, which contextual details would help you judge whether it applies to your project?",
-        help: "Choose up to 3",
-        max: 3,
+        help: "Choose all that apply",
         shuffle: true,
         options: [
           { key: "location", label: "Location or region" },
@@ -371,8 +374,8 @@ export const SECTIONS: Section[] = [
         text: "Which 3–5 plants do you personally prefer to use or consider for planting design in Metro Vancouver?",
         help: "Common or scientific names are fine. You do not need to consider a specific site",
         count: 5,
+        min: 3,
         labelPrefix: "Plant",
-        optional: true,
       },
       {
         kind: "plantnote",
@@ -382,7 +385,6 @@ export const SECTIONS: Section[] = [
         sourceQuestion: "q14",
         pickLabel: "Which plant is this about?",
         maxLength: 300,
-        optional: true,
       },
     ],
   },

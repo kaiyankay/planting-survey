@@ -5,6 +5,13 @@
  */
 import { ALL_QUESTIONS, type Question } from "../questions.ts";
 
+/** Which of these answers belong to a chosen plant: the note’s plant must be on the respondent’s own list. */
+function plantOnList(q: Question & { kind: "plantnote" }, note: { plant: string | null }, all?: Answers): boolean {
+  if (!note.plant) return false;
+  if (!all) return true;
+  return listEntries(all[q.sourceQuestion]).includes(note.plant);
+}
+
 export type ChoiceAnswer = { selected: string[]; other?: string };
 /** Row key → column key. The reserved key `na` set to "yes" marks the grid as not applicable. */
 export type GridAnswer = Record<string, string>;
@@ -35,8 +42,12 @@ export function listEntries(a: Answer | undefined): string[] {
   return ((a as TextListAnswer | undefined) ?? []).map((s) => (s ?? "").trim().replace(/\s+/g, " ")).filter(Boolean);
 }
 
-/** True when the question has enough of an answer to count as done. Optional questions are always complete. */
-export function isComplete(q: Question, a: Answer | undefined): boolean {
+/**
+ * True when the question has enough of an answer to count as done. Every
+ * question is required. Pass all answers to also check that a plant note
+ * names a plant that is still on the respondent’s list.
+ */
+export function isComplete(q: Question, a: Answer | undefined, all?: Answers): boolean {
   switch (q.kind) {
     case "checkbox":
     case "single": {
@@ -49,21 +60,17 @@ export function isComplete(q: Question, a: Answer | undefined): boolean {
       return q.rows.every((r) => Boolean(g[r.key]));
     }
     case "textlist":
-    case "plantnote":
-      return true;
+      return listEntries(a).length >= q.min;
+    case "plantnote": {
+      const note = readPlantNote(a);
+      return note.text.length > 0 && plantOnList(q, note, all);
+    }
   }
 }
 
-/** True when the respondent has put something in, including for optional questions. */
-export function hasAnswer(q: Question, a: Answer | undefined): boolean {
-  switch (q.kind) {
-    case "textlist":
-      return listEntries(a).length > 0;
-    case "plantnote":
-      return readPlantNote(a).text.length > 0;
-    default:
-      return isComplete(q, a);
-  }
+/** Same as isComplete: only a finished question counts as answered. */
+export function hasAnswer(q: Question, a: Answer | undefined, all?: Answers): boolean {
+  return isComplete(q, a, all);
 }
 
 /** Whether the respondent answered at all (the base for statistics). Grid: any cell or not-applicable. */
@@ -81,8 +88,10 @@ export function missingHint(q: Question): string {
       return "Choose one";
     case "grid":
       return "Answer each row";
-    default:
-      return "";
+    case "textlist":
+      return `Please list at least ${q.min} plants`;
+    case "plantnote":
+      return "Choose one of your plants above and write a few words about it";
   }
 }
 

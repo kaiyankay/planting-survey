@@ -1,13 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { csvColumns, flattenResponse, hasAnswer, isComplete, readPlantNote, toCsv, type ResponseRow } from "../src/lib/answers.ts";
+import { csvColumns, flattenResponse, hasAnswer, isComplete, missingHint, readPlantNote, toCsv, type ResponseRow } from "../src/lib/answers.ts";
 import { ALL_QUESTIONS, QUESTIONS_VERSION, SECTIONS } from "../src/questions.ts";
 
 const sample: ResponseRow = {
   id: "00000000-0000-0000-0000-000000000001",
   submitted_at: "2026-10-28T10:00:00Z",
   duration_seconds: 171,
-  questions_version: 3,
+  questions_version: 4,
   answers: {
     q1: { selected: ["mla", "other"], other: "Horticulturist" },
     q2: { selected: ["academic"] },
@@ -25,14 +25,24 @@ const sample: ResponseRow = {
   },
 };
 
-test("exactly 15 questions in the agreed order, version 3", () => {
-  assert.equal(QUESTIONS_VERSION, 3);
+test("exactly 15 questions in the agreed order, version 4", () => {
+  assert.equal(QUESTIONS_VERSION, 4);
   assert.deepEqual(
     ALL_QUESTIONS.map((q) => q.id),
     ["q1", "q2", "q11", "q3", "q4", "q5", "q7", "q8", "q9", "q10", "q16", "q6", "q17", "q14", "q15"],
   );
   assert.equal(SECTIONS.length, 5);
   assert.equal(ALL_QUESTIONS.find((q) => q.id === "q15")?.kind, "plantnote");
+  const q2 = ALL_QUESTIONS.find((q) => q.id === "q2")!;
+  assert.ok("options" in q2 && q2.options.some((o) => o.key === "personal") && !q2.options.some((o) => o.key === "both"));
+  const q4 = ALL_QUESTIONS.find((q) => q.id === "q4")!;
+  assert.ok(q4.kind === "checkbox" && q4.max === undefined && q4.help === "Choose all that apply");
+  const q16 = ALL_QUESTIONS.find((q) => q.id === "q16")!;
+  assert.ok(q16.kind === "checkbox" && q16.max === undefined);
+  const q8 = ALL_QUESTIONS.find((q) => q.id === "q8")!;
+  assert.ok(q8.kind === "checkbox" && q8.max === 3);
+  const q10 = ALL_QUESTIONS.find((q) => q.id === "q10")!;
+  assert.ok(q10.kind === "checkbox" && q10.max === 3 && q10.text.includes("which types of information would you most want to save"));
 });
 
 test("columns follow the question order; the plant note gets a plant column; removed questions are absent", () => {
@@ -79,17 +89,29 @@ test("csv escapes quotes and newlines", () => {
   assert.equal(csv.split("\r\n").length, 3);
 });
 
-test("completeness and answered rules", () => {
+test("every question is required; Q14 needs three plants, Q15 a listed plant and a note", () => {
   const q = (id: string) => ALL_QUESTIONS.find((x) => x.id === id)!;
   assert.equal(isComplete(q("q1"), undefined), false);
   assert.equal(isComplete(q("q1"), { selected: ["mla"] }), true);
   assert.equal(isComplete(q("q7"), { hardiness: "rule" }), false);
   assert.equal(isComplete(q("q7"), { na: "yes" }), true);
-  assert.equal(isComplete(q("q14"), undefined), true);
-  assert.equal(isComplete(q("q15"), undefined), true);
-  assert.equal(hasAnswer(q("q14"), ["", " "]), false);
-  assert.equal(hasAnswer(q("q14"), ["Salal"]), true);
-  assert.equal(hasAnswer(q("q15"), { plant: "Salal", text: "" }), false);
-  assert.equal(hasAnswer(q("q15"), { plant: "", text: "Shade." }), true);
-  assert.equal(hasAnswer(q("q15"), "legacy text"), true);
+  // Q14: at least three non-blank names; whitespace does not count.
+  assert.equal(isComplete(q("q14"), undefined), false);
+  assert.equal(isComplete(q("q14"), ["Salal", "  ", "Sword fern"]), false);
+  assert.equal(isComplete(q("q14"), ["Salal", "Sword fern", "Vine maple"]), true);
+  assert.equal(isComplete(q("q14"), ["Salal", "Sword fern", "Vine maple", "", ""]), true);
+  // Q15: a chosen plant and a non-blank note; the plant must still be on the list.
+  const all = { q14: ["Salal", "Sword fern", "Vine maple"] };
+  assert.equal(isComplete(q("q15"), undefined, all), false);
+  assert.equal(isComplete(q("q15"), { plant: "Salal", text: "   " }, all), false);
+  assert.equal(isComplete(q("q15"), { plant: "", text: "Shade." }, all), false);
+  assert.equal(isComplete(q("q15"), { plant: "Salal", text: "Shade." }, all), true);
+  assert.equal(isComplete(q("q15"), { plant: "Thuja plicata", text: "Shade." }, all), false, "a plant no longer on the list must be re-chosen");
+  assert.equal(isComplete(q("q15"), "legacy text", all), false, "an old note without a plant is not a complete answer");
+  // Progress counts only finished questions.
+  const answered = (answers: Record<string, unknown>) => ALL_QUESTIONS.filter((x) => hasAnswer(x, answers[x.id] as never, answers as never)).length;
+  assert.equal(answered({}), 0);
+  assert.equal(answered({ q1: { selected: ["mla"] }, q14: ["Salal", "Sword fern"] }), 1);
+  assert.equal(answered({ q1: { selected: ["mla"] }, q14: ["Salal", "Sword fern", "Vine maple"], q15: { plant: "Salal", text: "Shade." } }), 3);
+  assert.equal(missingHint(q("q14")), "Please list at least 3 plants");
 });

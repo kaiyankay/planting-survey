@@ -6,7 +6,8 @@ import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery.ts";
 import { QuestionBlock } from "./components/QuestionBlock.tsx";
 import { Closing, Intro, SectionHeader } from "./components/Screens.tsx";
 
-const REQUIRED = ALL_QUESTIONS.filter((q) => !("optional" in q));
+/** Every question must be answered before submitting. */
+const REQUIRED = ALL_QUESTIONS;
 
 export default function App() {
   const desktop = useMediaQuery(DESKTOP_QUERY);
@@ -16,8 +17,8 @@ export default function App() {
   const firstInteraction = useRef<number | null>(null);
   const submitted = useRef(false);
 
-  // Counts every question, optional ones included, so the bar reads "n of 15".
-  const answered = useMemo(() => ALL_QUESTIONS.filter((q) => hasAnswer(q, answers[q.id])).length, [answers]);
+  // Only a finished question counts, so the bar reaches 15 of 15 only when everything is done.
+  const answered = useMemo(() => ALL_QUESTIONS.filter((q) => hasAnswer(q, answers[q.id], answers)).length, [answers]);
   const progress = answered / ALL_QUESTIONS.length;
   const noExperience = (answers[NO_EXPERIENCE.question] as ChoiceAnswer | undefined)?.selected.includes(NO_EXPERIENCE.key) ?? false;
 
@@ -60,7 +61,7 @@ export default function App() {
 
   async function submit() {
     if (submitted.current) return;
-    const unanswered = REQUIRED.filter((q) => !isComplete(q, answers[q.id]));
+    const unanswered = REQUIRED.filter((q) => !isComplete(q, answers[q.id], answers));
     if (unanswered.length > 0) {
       setMissing(new Set(unanswered.map((q) => q.id)));
       document.getElementById(`block-${unanswered[0].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -82,7 +83,7 @@ export default function App() {
 
   if (status === "done") return <Closing />;
 
-  const remaining = REQUIRED.filter((q) => !isComplete(q, answers[q.id])).length;
+  const remaining = REQUIRED.filter((q) => !isComplete(q, answers[q.id], answers)).length;
 
   return (
     <div className="min-h-dvh">
@@ -127,8 +128,8 @@ export default function App() {
             {missing.size > 0
               ? `${missing.size} question${missing.size === 1 ? "" : "s"} above still need${missing.size === 1 ? "s" : ""} an answer.`
               : remaining > 0
-                ? `${remaining} still need${remaining === 1 ? "s" : ""} an answer before you can submit; the last two can be left blank.`
-                : "Everything needed is answered."}
+                ? `${remaining} still need${remaining === 1 ? "s" : ""} an answer before you can submit.`
+                : "Everything is answered."}
           </p>
           {status === "error" && (
             <p role="alert" className="mt-2 text-[13px] text-hint">

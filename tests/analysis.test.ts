@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { choiceStats, gridStats, median, normalizePlantName, plantNotes, plantTally, versionsIn } from "../src/lib/analysis.ts";
-import { ALL_QUESTIONS, type CheckboxQuestion, type GridQuestion } from "../src/questions.ts";
+import { ALL_QUESTIONS, type CheckboxQuestion, type GridQuestion, type SingleQuestion } from "../src/questions.ts";
 import type { ResponseRow } from "../src/lib/answers.ts";
 import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta } from "../src/dev/filters.ts";
 
 const q = <T>(id: string) => ALL_QUESTIONS.find((x) => x.id === id)! as T;
-const row = (answers: ResponseRow["answers"], i: number, version = 3): ResponseRow => ({
+const row = (answers: ResponseRow["answers"], i: number, version = 4): ResponseRow => ({
   id: String(i),
   submitted_at: "2026-10-28T00:00:00Z",
   duration_seconds: 100 + i,
@@ -60,6 +60,14 @@ test("plant tally merges case and spacing only; notes keep their explicit plant"
   assert.deepEqual(notes.map((n) => [n.plant, n.legacy]), [["Salal", false], [null, true]]);
 });
 
+test("Q2: the old key both is reported as an earlier-version selection, never merged into personal", () => {
+  const s = choiceStats(q<SingleQuestion>("q2"), [...rows, row({ q2: { selected: ["personal"] } }, 5)]);
+  assert.equal(s.n, 5);
+  assert.equal(s.unknown, 1, "one respondent chose the retired option both");
+  assert.equal(s.counts.find((c) => c.key === "personal")?.count, 1);
+  assert.ok(!s.counts.some((c) => c.key === "both"));
+});
+
 test("filters: default is the current version; roles may overlap; the meta describes the selection", () => {
   assert.equal(applyFilter(rows, DEFAULT_FILTER).length, 3);
   assert.equal(applyFilter(rows, { ...DEFAULT_FILTER, version: "all" }).length, 4);
@@ -70,8 +78,8 @@ test("filters: default is the current version; roles may overlap; the meta descr
   const meta = filterMeta({ ...DEFAULT_FILTER, roles: new Set(["mla"]) }, 2, 4);
   assert.deepEqual(meta.roles, ["MLA student"]);
   assert.ok(meta.roles_note);
-  assert.match(describeFilter(DEFAULT_FILTER, 3, 4), /3 of 4 responses · questionnaire version 3/);
-  assert.deepEqual(versionsIn(rows), [3, 2]);
+  assert.match(describeFilter(DEFAULT_FILTER, 3, 4), /3 of 4 responses · questionnaire version 4/);
+  assert.deepEqual(versionsIn(rows), [4, 2]);
 });
 
 test("median", () => {

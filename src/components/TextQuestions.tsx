@@ -63,7 +63,7 @@ export function PlantNoteQuestion({
       <div>
         <p className="mb-1 text-[13px] text-mute">{question.pickLabel}</p>
         {plants.length === 0 ? (
-          <p className="text-[14px] text-mute">List a plant in the question above first.</p>
+          <p className="text-[13px] text-mute">List a plant in the question above first</p>
         ) : (
           <div role="radiogroup" aria-label={question.pickLabel} className="space-y-0.5">
             {plants.map((p, i) => {

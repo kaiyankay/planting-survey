@@ -124,7 +124,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q1",
         text: "Which of the following describe you?",
-        help: "Choose all that apply.",
+        help: "Choose all that apply",
         options: [
           { key: "mla", label: "MLA student" },
           { key: "other_student", label: "Student in another discipline" },
@@ -154,7 +154,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q11",
         text: "Which sources do you rely on most for plant information?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -173,7 +173,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q3",
         text: "What do you most want to know about a plant?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -192,7 +192,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q4",
         text: "Which measurements do you use when designing a planting?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         options: [
           { key: "height", label: "Mature height" },
@@ -210,7 +210,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q5",
         text: "When choosing plants for their appearance, which characteristics matter most?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -253,7 +253,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q8",
         text: "Which types of plant information have you found most difficult to obtain or verify?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -271,7 +271,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q9",
         text: "How do you currently keep or retrieve what you’ve learned about plants?",
-        help: "Choose all that apply.",
+        help: "Choose all that apply",
         options: [
           { key: "own_list", label: "My own plant list or spreadsheet" },
           { key: "project_files", label: "Past project or studio files, including plant schedules" },
@@ -287,7 +287,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q10",
         text: "If recording your own plant knowledge were easy, what would you want to save?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         options: [
           { key: "performance", label: "How it performed in a specific project" },
@@ -304,7 +304,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q16",
         text: "If a database includes someone’s observation or experience with a plant, which contextual details would help you judge whether it applies to your project?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -327,7 +327,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q6",
         text: "How do you usually describe the planting you have in mind?",
-        help: "Choose up to 2.",
+        help: "Choose up to 2",
         max: 2,
         shuffle: true,
         options: [
@@ -344,7 +344,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "q17",
         text: "If you were using a plant knowledge database, which ways of finding information would be most useful for your design work?",
-        help: "Choose up to 3.",
+        help: "Choose up to 3",
         max: 3,
         shuffle: true,
         options: [
@@ -369,7 +369,7 @@ export const SECTIONS: Section[] = [
         kind: "textlist",
         id: "q14",
         text: "Which 3–5 plants do you personally prefer to use or consider for planting design in Metro Vancouver?",
-        help: "Common or scientific names are fine. You do not need to consider a specific site.",
+        help: "Common or scientific names are fine. You do not need to consider a specific site",
         count: 5,
         labelPrefix: "Plant",
         optional: true,
@@ -378,7 +378,7 @@ export const SECTIONS: Section[] = [
         kind: "plantnote",
         id: "q15",
         text: "Pick one plant from your list. Why do you prefer it, and under what site conditions would you use it?",
-        help: "You may also mention other plants you would combine it with.",
+        help: "You may also mention other plants you would combine it with",
         sourceQuestion: "q14",
         pickLabel: "Which plant is this about?",
         maxLength: 300,

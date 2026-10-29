@@ -15,17 +15,11 @@ type Props = {
 /** The matrix needs about 600 px; below that each row stacks its four choices. */
 const MATRIX_QUERY = "(min-width: 640px)";
 
-const LETTERS = "ABCDEFGH";
-
-/**
- * The same key block as the choice rows. In the matrix the cell has no letter,
- * so a chosen cell shows a check; in the stacked layout the letter stays and the
- * block fills, exactly like a single-choice row.
- */
-function Cell({ on, letter }: { on: boolean; letter?: string }) {
+/** The same 22px block as every option, left blank; a chosen cell fills and shows a check. */
+function Cell({ on }: { on: boolean }) {
   return (
     <span className={`key ${on ? "key-on" : ""}`} aria-hidden>
-      {letter ?? (on ? <Check /> : null)}
+      {on && <Check />}
     </span>
   );
 }
@@ -116,7 +110,7 @@ export function GridQuestion({ question, answer, onChange, allowNotApplicable }:
           <div key={row.key} role="radiogroup" aria-label={row.label}>
             <p className="mb-1 text-[15px] leading-snug text-ink">{row.label}</p>
             <div className="space-y-0.5">
-              {question.columns.map((col, i) => {
+              {question.columns.map((col) => {
                 const on = value[row.key] === col.key;
                 return (
                   <button
@@ -127,7 +121,7 @@ export function GridQuestion({ question, answer, onChange, allowNotApplicable }:
                     onClick={() => set(row.key, col.key)}
                     className={[rowClass, "items-center", on ? "bg-chip" : "hover:bg-chip"].join(" ")}
                   >
-                    <Cell on={on} letter={LETTERS[i]} />
+                    <Cell on={on} />
                     <span className="flex-1">{col.label}</span>
                   </button>
                 );

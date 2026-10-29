@@ -90,7 +90,7 @@ export default function App() {
         <div className="h-[3px] bg-line" aria-hidden>
           <div className="h-full bg-accent transition-[width] duration-500 ease-out" style={{ width: `${progress * 100}%` }} />
         </div>
-        <div className="mx-auto flex max-w-[42rem] items-center justify-end px-6 py-1.5 text-[12px] text-mute">
+        <div className="mx-auto flex max-w-[42rem] items-center justify-end px-6 py-1.5 text-[13px] text-mute">
           <span className="tabular-nums" aria-live="polite">
             {answered} of {ALL_QUESTIONS.length} answered
           </span>
@@ -122,7 +122,7 @@ export default function App() {
         ))}
 
         <div className="mt-12 border-t border-line pt-6">
-          <p className="text-[14px] text-mute">
+          <p className="text-[13px] text-mute">
             {answered} of {ALL_QUESTIONS.length} answered.{" "}
             {missing.size > 0
               ? `${missing.size} question${missing.size === 1 ? "" : "s"} above still need${missing.size === 1 ? "s" : ""} an answer.`
@@ -131,7 +131,7 @@ export default function App() {
                 : "Everything needed is answered."}
           </p>
           {status === "error" && (
-            <p role="alert" className="mt-2 text-[14px] text-hint">
+            <p role="alert" className="mt-2 text-[13px] text-hint">
               Your answers couldn’t be sent. Check your connection and try again.
             </p>
           )}
@@ -145,7 +145,7 @@ export default function App() {
           </button>
           <p className="mt-5 text-[13px] text-mute">Nothing is sent until you submit. No name, email or device identifier is recorded.</p>
         </div>
-        <p className="mt-16 text-right text-[12px] text-mute">
+        <p className="mt-16 text-right text-[13px] text-mute">
           <a href="#/dev" className="hover:text-ink">
             Developer
           </a>

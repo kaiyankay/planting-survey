@@ -76,11 +76,11 @@ export function answered(q: Question, a: Answer | undefined): boolean {
 export function missingHint(q: Question): string {
   switch (q.kind) {
     case "checkbox":
-      return "Choose at least one.";
+      return "Choose at least one";
     case "single":
-      return "Choose one.";
+      return "Choose one";
     case "grid":
-      return "Answer each row.";
+      return "Answer each row";
     default:
       return "";
   }

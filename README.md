@@ -33,7 +33,7 @@ npm run build     # static site in dist/
 1. Create a project at supabase.com (the free tier is enough).
 2. Open SQL Editor and run [`supabase.sql`](supabase.sql). It creates the `responses` table and a Row Level Security policy that lets the public anon key insert rows and nothing else.
 3. In Project Settings → API, copy the project URL and the `anon` key.
-4. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. Restart `npm run dev`.
+4. Copy `.env.example` to `.env` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`. The key is the project’s **publishable** key (`sb_publishable_…`, Project Settings → API Keys); a legacy `anon` JWT works too. Restart `npm run dev`.
 
 ### Developer mode access
 

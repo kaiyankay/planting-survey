@@ -33,7 +33,9 @@ export async function submitResponse(answers: Answers, durationSeconds: number):
     method: "POST",
     headers: {
       apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
+      // Legacy anon keys are JWTs and also go in Authorization; the newer
+      // publishable keys (sb_publishable_…) are sent as apikey only.
+      ...(anonKey.startsWith("eyJ") ? { Authorization: `Bearer ${anonKey}` } : {}),
       "Content-Type": "application/json",
       Prefer: "return=minimal",
     },

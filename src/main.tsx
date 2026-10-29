@@ -13,7 +13,8 @@ function Root() {
     return () => removeEventListener("hashchange", onChange);
   }, []);
   // Supabase's magic link lands with access tokens in the hash; keep developer mode for those too.
-  const dev = hash.startsWith("#/dev") || hash.includes("access_token=");
+  // The sign-in link lands on the root with tokens (or an error) in the URL; that is developer mode too.
+  const dev = hash.startsWith("#/dev") || hash.includes("access_token=") || hash.includes("error=") || location.search.includes("code=");
   return dev ? <DevApp /> : <App />;
 }
 

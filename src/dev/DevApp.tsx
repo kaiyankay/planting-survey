@@ -31,7 +31,12 @@ export function DevApp() {
       setSession(data.session);
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      setSession(s);
+      // The sign-in link lands on the site root with tokens in the URL; once
+      // they are consumed, go to developer mode proper.
+      if (event === "SIGNED_IN" && !location.hash.startsWith("#/dev")) location.hash = "#/dev";
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 
@@ -63,17 +68,28 @@ function NotConfigured() {
   );
 }
 
+/** An error the auth server put in the URL after a failed link (expired, already used). */
+function linkError(): string {
+  const m = /error_description=([^&]*)/.exec(location.hash) ?? /error_description=([^&]*)/.exec(location.search);
+  return m ? decodeURIComponent(m[1].replace(/\+/g, " ")) : "";
+}
+
 function SignIn() {
   const [email, setEmail] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
-  const [error, setError] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(() => (linkError() ? "error" : "idle"));
+  const [error, setError] = useState(() => {
+    const e = linkError();
+    return e ? `The sign-in link did not work: ${e}. Request a new one and open only the newest email.` : "";
+  });
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
     setState("sending");
     const { error } = await supabase!.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${location.origin}${location.pathname}#/dev` },
+      // No hash here: the auth server appends its own #access_token fragment,
+      // and two fragments in one URL would not be parsed.
+      options: { emailRedirectTo: `${location.origin}${location.pathname}` },
     });
     if (error) {
       setError(error.message);

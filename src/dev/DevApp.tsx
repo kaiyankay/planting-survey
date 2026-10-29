@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase.ts";
 import type { ResponseRow } from "../lib/answers.ts";
-import { SURVEY_TITLE } from "../questions.ts";
-import { memoryStore, supabaseStore, type DevStore, type Review, type Role } from "./data.ts";
+import { ALL_QUESTIONS, QUESTIONS_VERSION, SURVEY_TITLE } from "../questions.ts";
+import { versionsIn } from "../lib/analysis.ts";
+import { memoryStore, supabaseStore, type Decision, type DevStore, type Review, type Role } from "./data.ts";
+import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta, type Filter } from "./filters.ts";
 import { Analytics } from "./Analytics.tsx";
 import { Insights } from "./Insights.tsx";
 import { Candidates } from "./Candidates.tsx";
@@ -12,8 +14,8 @@ import { Share } from "./Share.tsx";
 /**
  * Developer mode, reached at #/dev. Sign in by magic link; the database’s
  * Row Level Security decides whether the account is a member and what it may
- * do. Without Supabase configured, the workbench opens on sample data with
- * the visitor acting as owner, so the layout can be checked.
+ * do. In local development without Supabase the workbench opens on sample
+ * data; a production build without Supabase says so and stops.
  */
 export function DevApp() {
   const [session, setSession] = useState<Session | null>(null);
@@ -32,7 +34,7 @@ export function DevApp() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  if (!supabase) return <SampleWorkbench />;
+  if (!supabase) return import.meta.env.DEV ? <SampleWorkbench /> : <NotConfigured />;
   if (!ready) return null;
   if (!session) return <SignIn />;
   const email = session.user.email ?? "";
@@ -41,6 +43,23 @@ export function DevApp() {
 
 function Frame({ children }: { children: React.ReactNode }) {
   return <div className="mx-auto max-w-[42rem] px-6 pb-24 pt-16">{children}</div>;
+}
+
+function NotConfigured() {
+  return (
+    <Frame>
+      <h1 className="text-[22px] font-semibold text-ink">Developer mode is not configured</h1>
+      <p className="mt-2 max-w-[34rem] text-[15px] leading-relaxed text-mute">
+        This deployment was built without <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code>, so there is no database to sign in to
+        and survey submissions are not being stored either. Set both as repository variables and redeploy; the README has the steps.
+      </p>
+      <p className="mt-6 text-[13px] text-mute">
+        <a href="#/" className="underline">
+          Back to the survey
+        </a>
+      </p>
+    </Frame>
+  );
 }
 
 function SignIn() {
@@ -66,7 +85,7 @@ function SignIn() {
   return (
     <Frame>
       <h1 className="text-[26px] font-bold text-ink">Developer mode</h1>
-      <p className="mt-2 text-[15px] text-mute">Sign in to read and analyse responses. Only invited members can read anything.</p>
+      <p className="mt-2 text-[15px] text-mute">Sign in to read and analyse responses. Only accounts the owner has granted access can read anything.</p>
       {state === "sent" ? (
         <p className="mt-8 text-[16px] text-ink">Check your inbox for a sign-in link. It brings you back here.</p>
       ) : (
@@ -103,8 +122,7 @@ function SignIn() {
 /** Loads the role, then the data; shows why when either is refused. */
 function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut: () => void }) {
   const [role, setRole] = useState<Role | null | undefined>(undefined);
-  const [rows, setRows] = useState<ResponseRow[] | null>(null);
-  const [reviews, setReviews] = useState<Review[] | null>(null);
+  const [data, setData] = useState<{ rows: ResponseRow[]; reviews: Review[]; decisions: Decision[] } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -115,10 +133,8 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
         if (cancelled) return;
         setRole(r);
         if (!r) return;
-        const [data, rv] = await Promise.all([store.responses(), store.reviews()]);
-        if (cancelled) return;
-        setRows(data);
-        setReviews(rv);
+        const [rows, reviews, decisions] = await Promise.all([store.responses(), store.reviews(), store.decisions()]);
+        if (!cancelled) setData({ rows, reviews, decisions });
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -132,6 +148,7 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
     return (
       <Frame>
         <p className="text-[15px] text-hint">Couldn’t load: {error}</p>
+        <p className="mt-2 text-[13px] text-mute">If a table is missing, run the latest migration in supabase/migrations (see README).</p>
         <button type="button" onClick={onSignOut} className="mt-6 text-[14px] underline">
           Sign out
         </button>
@@ -149,9 +166,7 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
     return (
       <Frame>
         <h1 className="text-[22px] font-semibold text-ink">No access</h1>
-        <p className="mt-2 text-[15px] text-mute">
-          {me} is signed in but is not a member. Ask the owner to share developer mode with this email.
-        </p>
+        <p className="mt-2 text-[15px] text-mute">{me} is signed in but has not been granted access. Ask the owner to add this email under Share.</p>
         <p className="mt-6 text-[14px]">
           <button type="button" onClick={onSignOut} className="underline">
             Sign out
@@ -163,14 +178,14 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
       </Frame>
     );
   }
-  if (!rows || !reviews) {
+  if (!data) {
     return (
       <Frame>
         <p className="text-[15px] text-mute">Loading responses…</p>
       </Frame>
     );
   }
-  return <Workbench store={store} me={me} role={role} rows={rows} initialReviews={reviews} onSignOut={onSignOut} />;
+  return <Workbench store={store} me={me} role={role} rows={data.rows} initialReviews={data.reviews} initialDecisions={data.decisions} onSignOut={onSignOut} />;
 }
 
 type Tab = "analytics" | "insights" | "candidates";
@@ -180,12 +195,16 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "candidates", label: "Plant candidates" },
 ];
 
+const Q1 = ALL_QUESTIONS.find((q) => q.id === "q1")!;
+const Q2 = ALL_QUESTIONS.find((q) => q.id === "q2")!;
+
 function Workbench({
   store,
   me,
   role,
   rows,
   initialReviews,
+  initialDecisions,
   onSignOut,
 }: {
   store: DevStore;
@@ -193,23 +212,39 @@ function Workbench({
   role: Role;
   rows: ResponseRow[];
   initialReviews: Review[];
+  initialDecisions: Decision[];
   onSignOut: () => void;
 }) {
   const tabFromHash = () => (TABS.some((t) => t.key === location.hash.split("/")[2]) ? (location.hash.split("/")[2] as Tab) : "analytics");
   const [tab, setTab] = useState<Tab>(tabFromHash);
-  // Keep the tab in step with the address bar (back button, pasted links).
+  const [filter, setFilter] = useState<Filter>(DEFAULT_FILTER);
+  const [reviews, setReviews] = useState(initialReviews);
+  const [decisions, setDecisions] = useState(initialDecisions);
+  const [share, setShare] = useState(false);
+  const canEdit = role === "owner" || role === "editor";
+
   useEffect(() => {
     const onHash = () => setTab(tabFromHash());
     addEventListener("hashchange", onHash);
     return () => removeEventListener("hashchange", onHash);
   }, []);
-  const [reviews, setReviews] = useState(initialReviews);
-  const [share, setShare] = useState(false);
-  const canEdit = role === "owner" || role === "editor";
+
+  const filtered = useMemo(() => applyFilter(rows, filter), [rows, filter]);
+  const versions = useMemo(() => versionsIn(rows), [rows]);
+  const scope = describeFilter(filter, filtered.length, rows.length);
+  const meta = filterMeta(filter, filtered.length, rows.length);
 
   function pick(t: Tab) {
     setTab(t);
     location.hash = `#/dev/${t}`;
+  }
+  function toggle(key: "roles" | "experience", value: string) {
+    setFilter((f) => {
+      const next = new Set(f[key]);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return { ...f, [key]: next };
+    });
   }
 
   async function saveReview(r: Review) {
@@ -220,6 +255,13 @@ function Workbench({
     await store.clearReview(key);
     setReviews(await store.reviews());
   }
+  async function saveDecision(d: Decision) {
+    await store.saveDecision(d);
+    setDecisions(await store.decisions());
+  }
+
+  const chip = (on: boolean) =>
+    ["rounded-md border px-2.5 py-1 text-[13px] leading-snug transition-colors", on ? "border-ink bg-chip text-ink" : "border-line text-mute hover:bg-chip"].join(" ");
 
   return (
     <div className="min-h-dvh">
@@ -265,10 +307,51 @@ function Workbench({
         </div>
       </header>
 
+      <section aria-label="Selection" className="border-b border-line bg-chip/60">
+        <div className="mx-auto max-w-[46rem] space-y-2 px-6 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 text-[12px] text-mute">Version</span>
+            {[QUESTIONS_VERSION, ...versions.filter((v) => v !== QUESTIONS_VERSION)].map((v) => (
+              <button key={v} type="button" aria-pressed={filter.version === v} onClick={() => setFilter({ ...filter, version: v })} className={chip(filter.version === v)}>
+                {v === QUESTIONS_VERSION ? `${v} (current)` : String(v)}
+              </button>
+            ))}
+            <button type="button" aria-pressed={filter.version === "all"} onClick={() => setFilter({ ...filter, version: "all" })} className={chip(filter.version === "all")}>
+              All
+            </button>
+            {filter.version === "all" && <span className="text-[12px] text-mute">Options differ between versions; answers to options that no longer exist are reported, not merged.</span>}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 text-[12px] text-mute">Who</span>
+            {Q1.kind === "checkbox" &&
+              Q1.options.map((o) => (
+                <button key={o.key} type="button" aria-pressed={filter.roles.has(o.key)} onClick={() => toggle("roles", o.key)} className={chip(filter.roles.has(o.key))}>
+                  {o.label}
+                </button>
+              ))}
+            <span className="text-[12px] text-mute">A respondent may hold several roles, so role groups can overlap.</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 text-[12px] text-mute">Experience</span>
+            {Q2.kind === "single" &&
+              Q2.options.map((o) => (
+                <button key={o.key} type="button" aria-pressed={filter.experience.has(o.key)} onClick={() => toggle("experience", o.key)} className={chip(filter.experience.has(o.key))}>
+                  {o.label}
+                </button>
+              ))}
+          </div>
+          <p className="text-[13px] text-ink">
+            Showing {scope}. Every number, chart and export on these tabs uses this selection.
+          </p>
+        </div>
+      </section>
+
       <main className="mx-auto max-w-[46rem] px-6 pb-24 pt-8">
-        {tab === "analytics" && <Analytics rows={rows} />}
-        {tab === "insights" && <Insights rows={rows} />}
-        {tab === "candidates" && <Candidates rows={rows} reviews={reviews} canEdit={canEdit} onSave={saveReview} onClear={clearReview} />}
+        {tab === "analytics" && <Analytics rows={filtered} total={rows.length} meta={meta} />}
+        {tab === "insights" && <Insights rows={filtered} decisions={decisions} canEdit={canEdit} onDecide={saveDecision} meta={meta} />}
+        {tab === "candidates" && (
+          <Candidates rows={filtered} reviews={reviews} canEdit={canEdit} onSave={saveReview} onClear={clearReview} meta={meta} />
+        )}
       </main>
 
       {share && <Share store={store} me={me} onClose={() => setShare(false)} />}
@@ -276,7 +359,7 @@ function Workbench({
   );
 }
 
-/** Without Supabase env vars: sample data, visitor as owner, nothing persisted. */
+/** Local development without Supabase: sample data, visitor as owner, nothing persisted. */
 function SampleWorkbench() {
   const [state, setState] = useState<{ store: DevStore; rows: ResponseRow[] } | null>(null);
   useEffect(() => {
@@ -288,8 +371,16 @@ function SampleWorkbench() {
   if (!state) return null;
   return (
     <>
-      <p className="bg-mark px-6 py-1.5 text-center text-[12px] text-ink">Sample data: Supabase is not configured, nothing here is saved.</p>
-      <Workbench store={state.store} me="you@example.com" role="owner" rows={state.rows} initialReviews={[]} onSignOut={() => (location.hash = "#/")} />
+      <p className="bg-mark px-6 py-1.5 text-center text-[12px] text-ink">Local sample data: Supabase is not configured, nothing here is saved.</p>
+      <Workbench
+        store={state.store}
+        me="owner@example.com"
+        role="owner"
+        rows={state.rows}
+        initialReviews={[]}
+        initialDecisions={[]}
+        onSignOut={() => (location.hash = "#/")}
+      />
     </>
   );
 }

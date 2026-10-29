@@ -1,6 +1,6 @@
 /**
  * Answer shapes as stored in the `answers` jsonb column, plus the pure
- * functions shared by the app (validation) and the export script (CSV).
+ * functions shared by the app (validation) and the exports (CSV).
  * No React or browser APIs in here.
  */
 import { ALL_QUESTIONS, type Question } from "../questions.ts";
@@ -9,12 +9,31 @@ export type ChoiceAnswer = { selected: string[]; other?: string };
 /** Row key → column key. The reserved key `na` set to "yes" marks the grid as not applicable. */
 export type GridAnswer = Record<string, string>;
 export type TextListAnswer = string[];
-export type TextAnswer = string;
+/** Version 3: which of the respondent’s own plants the note is about, and the note. */
+export type PlantNoteAnswer = { plant: string; text: string };
+/** Versions 1 and 2 stored the note alone, with no plant attached. */
+export type LegacyTextAnswer = string;
 
-export type Answer = ChoiceAnswer | GridAnswer | TextListAnswer | TextAnswer;
+export type Answer = ChoiceAnswer | GridAnswer | TextListAnswer | PlantNoteAnswer | LegacyTextAnswer;
 export type Answers = Record<string, Answer>;
 
 export const GRID_NA = "na";
+
+/** Reads a plant note in either format. `plant` is null when the old format gave no plant. */
+export function readPlantNote(a: Answer | undefined): { plant: string | null; text: string; legacy: boolean } {
+  if (a == null) return { plant: null, text: "", legacy: false };
+  if (typeof a === "string") return { plant: null, text: a.trim(), legacy: true };
+  if (typeof a === "object" && !Array.isArray(a) && "text" in a) {
+    const p = (a as PlantNoteAnswer).plant?.trim() ?? "";
+    return { plant: p ? p : null, text: ((a as PlantNoteAnswer).text ?? "").trim(), legacy: false };
+  }
+  return { plant: null, text: "", legacy: false };
+}
+
+/** Non-empty entries of a text list, trimmed, in order. */
+export function listEntries(a: Answer | undefined): string[] {
+  return ((a as TextListAnswer | undefined) ?? []).map((s) => (s ?? "").trim().replace(/\s+/g, " ")).filter(Boolean);
+}
 
 /** True when the question has enough of an answer to count as done. Optional questions are always complete. */
 export function isComplete(q: Question, a: Answer | undefined): boolean {
@@ -30,7 +49,7 @@ export function isComplete(q: Question, a: Answer | undefined): boolean {
       return q.rows.every((r) => Boolean(g[r.key]));
     }
     case "textlist":
-    case "text":
+    case "plantnote":
       return true;
   }
 }
@@ -39,12 +58,18 @@ export function isComplete(q: Question, a: Answer | undefined): boolean {
 export function hasAnswer(q: Question, a: Answer | undefined): boolean {
   switch (q.kind) {
     case "textlist":
-      return ((a as TextListAnswer | undefined) ?? []).some((s) => s.trim().length > 0);
-    case "text":
-      return ((a as TextAnswer | undefined) ?? "").trim().length > 0;
+      return listEntries(a).length > 0;
+    case "plantnote":
+      return readPlantNote(a).text.length > 0;
     default:
       return isComplete(q, a);
   }
+}
+
+/** Whether the respondent answered at all (the base for statistics). Grid: any cell or not-applicable. */
+export function answered(q: Question, a: Answer | undefined): boolean {
+  if (a === undefined) return false;
+  return hasAnswer(q, a);
 }
 
 /** One-line hint shown under a question that still needs an answer. */
@@ -72,6 +97,9 @@ export function csvColumns(): string[] {
       case "textlist":
         for (let i = 1; i <= q.count; i++) cols.push(`${q.id}_${i}`);
         break;
+      case "plantnote":
+        cols.push(`${q.id}_plant`, q.id);
+        break;
       default:
         cols.push(q.id);
     }
@@ -97,7 +125,8 @@ export type ResponseRow = {
 /**
  * Flattens one stored response into a string per CSV column. Answer keys that
  * no longer exist in the questionnaire (for example q12 and q13 from version 1)
- * are left out rather than mapped onto other columns.
+ * are left out rather than mapped onto other columns. A version 1 or 2 plant
+ * note has no plant, so its plant column reads "Unassigned".
  */
 export function flattenResponse(row: ResponseRow): Record<string, string> {
   const out: Record<string, string> = {
@@ -130,9 +159,12 @@ export function flattenResponse(row: ResponseRow): Record<string, string> {
         for (let i = 1; i <= q.count; i++) out[`${q.id}_${i}`] = (t[i - 1] ?? "").trim();
         break;
       }
-      case "text":
-        out[q.id] = ((a as TextAnswer | undefined) ?? "").trim();
+      case "plantnote": {
+        const n = readPlantNote(a);
+        out[`${q.id}_plant`] = n.text ? (n.plant ?? "Unassigned") : "";
+        out[q.id] = n.text;
         break;
+      }
     }
   }
   return out;

@@ -7,7 +7,7 @@ Vite + React + TypeScript + Tailwind on the front end. Responses go into one Sup
 The one site has two modes:
 
 - **Survey** at the root: what respondents see.
-- **Developer mode** at `#/dev` (also the small “Developer” link at the foot of the survey): sign in by email link. Members see three tabs: **Survey analytics** (counts, filters by role and experience, per-question summaries, open answers, raw CSV and analysis JSON), **Database insights** (the results read as six research dimensions, each with survey results, findings and suggested database fields or features, exported as `database_requirements.json`) and **Plant candidates** (the plants named in question 14 with what respondents wrote in question 15; merge spellings, shortlist, add notes, exported as `plant_candidates.json`). Without Supabase env vars it opens on generated sample data so the layout can be checked.
+- **Developer mode** at `#/dev` (also the small “Developer” link at the foot of the survey): sign in by email link. Members see one shared selection (questionnaire version, roles, experience) and three tabs: **Survey analytics** (counts with their base n, open answers, raw CSV and analysis JSON), **Database insights** (six research dimensions, each showing survey evidence, the research team’s proposed requirements with their evidence, and a recorded decision per requirement; exported as `database_requirements.json`) and **Plant candidates** (the plants named in question 14 with the notes respondents attached in question 15; merge spellings, shortlist, add notes; exported as `plant_candidates.json`). In local development without Supabase it opens on generated sample data; a production build without Supabase shows a configuration error instead.
 
 ## Run it locally
 
@@ -39,18 +39,27 @@ npm run build     # static site in dist/
 
 Access is decided in the database, not in the page. `supabase.sql` creates:
 
-- `dev_members` (email, role): who may read. Roles are **owner** (you; fixed in the SQL, the only account that can invite or remove), **editor** (reads everything and can review plant candidates) and **viewer** (reads everything).
+- `dev_members` (email, role): who may read. Roles are **owner** (the only account that can grant or remove access), **editor** (reads everything and can change plant and requirement decisions) and **viewer** (reads everything, including raw responses; it cannot change decisions).
 - `dev_role()`: a function that returns the signed-in account’s role, used by every policy.
-- `plant_reviews`: reviewers’ merges, shortlist status and notes about the plants respondents named. Survey responses are never modified.
+- `plant_reviews` and `requirement_reviews`: reviewers’ decisions. Survey responses are never modified.
 
-Setup:
+Setup, once:
 
 1. Authentication → Providers → Email: keep it enabled (magic link; no password needed).
 2. Authentication → URL Configuration: set Site URL to where the site is served (for example `https://<user>.github.io/<repo>/`) and add it to Redirect URLs. For local work add `http://localhost:5174/` too.
-3. In `supabase.sql`, the `dev_members` insert already names the owner email; run the whole file in the SQL editor. It is safe to run again later.
-4. Open `#/dev`, enter that email, click the link in the message.
+3. Run the whole of `supabase.sql` in the SQL editor. It is safe to run again later; it never touches responses.
+4. Set the owner, with your own email, in the SQL editor:
 
-Sharing: in developer mode the owner sees a **Share** button. Enter an email and choose Viewer or Editor; the person then signs in at `#/dev` with that email. The same dialog changes roles and removes members. No one else can invite, and nothing in the app can add another owner or remove the owner row; those are database rules, so hiding buttons is not what protects them. No service-role key is involved: the owner’s own signed-in session performs the changes under those rules.
+   ```sql
+   select public.dev_set_owner(you@example.com);
+   ```
+
+   This does nothing if an owner already exists, so it cannot replace one. No email is written into the repository.
+5. Open `#/dev`, enter that email, click the link in the message.
+
+For a project that already ran an earlier version of `supabase.sql`, run `supabase/migrations/2026-10-29_requirement_reviews.sql` instead; it adds the owner function and the `requirement_reviews` table and changes nothing else.
+
+Granting access: in developer mode the owner sees **Share**. Enter an email, choose Viewer or Editor, **Grant access**. No message is sent: copy the developer link from the same dialog and send it yourself; the person signs in there with that email and the database lets them in. The dialog also changes roles and removes members. No one else can grant access, and nothing in the app can add another owner or remove the owner row; those are database rules, so hiding buttons is not what protects them. No service-role key is involved.
 
 Each response is one row:
 
@@ -86,7 +95,7 @@ This downloads every row and writes `responses-YYYY-MM-DD.csv` in the project fo
 - Project Settings → API → `service_role` key.
 - Put it in `.env` as `SUPABASE_SERVICE_ROLE_KEY`. `.env` and `*.csv` are git-ignored. Never put this key in a `VITE_` variable or in the GitHub repository.
 
-CSV layout: one column per question id, in display order (`q1`, `q2`, `q11`, `q3`, `q4`, `q5`, `q7`, `q8`, `q9`, `q10`, `q16`, `q6`, `q17`, `q14`, `q15`). Multi-selects are joined with ` | `; an "Other" choice appears as `Other: <text>`. Grid rows become `q7_hardiness`, `q7_light`, … with the chosen column label, or `Not applicable`. Q14 becomes `q14_1` … `q14_5`. Answers stored under keys that no longer exist (`q12`, `q13` from version 1) are left out, never mapped onto other columns. The file opens directly in Excel and Numbers.
+CSV layout: one column per question id, in display order (`q1`, `q2`, `q11`, `q3`, `q4`, `q5`, `q7`, `q8`, `q9`, `q10`, `q16`, `q6`, `q17`, `q14`, `q15_plant`, `q15`). Multi-selects are joined with ` | `; an "Other" choice appears as `Other: <text>`. Grid rows become `q7_hardiness`, `q7_light`, … with the chosen column label, or `Not applicable`. Q14 becomes `q14_1` … `q14_5`; `q15_plant` holds the plant the note is about, or `Unassigned` for notes written under versions 1–2, which never had one. Answers stored under keys that no longer exist (`q12`, `q13` from version 1) are left out, never mapped onto other columns. The file opens directly in Excel and Numbers.
 
 ## Editing the questions
 
@@ -94,13 +103,14 @@ All copy lives in [`src/questions.ts`](src/questions.ts): title, intro, sections
 
 - Keep option, row and item `key`s stable once responses exist; they are what is stored. Labels can change freely.
 - Question ids are storage keys, not display numbers: the number shown is the question’s position in `SECTIONS`, so reordering never renames data.
-- Bump `QUESTIONS_VERSION` when a change affects how old answers should be read. Version 2 reordered the questions, replaced q3’s options, split q11’s web/AI option, removed q12 and q13 and added q16 and q17.
+- Bump `QUESTIONS_VERSION` when a change affects how old answers should be read. Version 2 reordered the questions, replaced q3’s options, split q11’s web/AI option, removed q12 and q13 and added q16 and q17. Version 3 made q15 name the plant it is about (stored as `{ plant, text }`); earlier string notes stay readable and are shown as unassigned.
 - Flags on options: `exclusive` (clears the others), `other` (shows a text field), `fixed` (stays at the end when the question is shuffled). On questions: `max` (choose up to N), `shuffle`.
 
 ## Choices made where the brief left room
 
 - **Questions are numbered 1 to 15** in display order; the five groups are quiet grey labels, and the first group shows none.
 - **No experience yet.** A respondent who answers “None yet” to question 2 sees a not-applicable choice on the two questions that assume a real design (measurements used, and the considerations grid). Leaving “None yet” later removes those choices and anything selected under them.
+- **Statistics.** Developer mode defaults to the current questionnaire version; other versions can be selected but answers to options that no longer exist are reported as such, not merged. Shares are of respondents who answered each question (n); Q7 rows exclude not-applicable and missing answers from their denominators; role groups may overlap because question 1 allows several roles. Every tab and export uses the same selection.
 - **Saved only when saved.** The closing screen appears only after the database confirms the insert; otherwise the error stays on screen with the Submit button. In `npm run dev` without Supabase env vars the response is logged instead, which the console says plainly.
 - **One scrolling page, not one screen per question.** The intro, five parts and the Submit button sit on a single page so nobody has to tap Next fifteen times. The thin line at the top fills as required questions are answered. Submit checks the thirteen required questions, scrolls to the first one missing and shows a one-line hint under each.
 - **Storage is key-based.** The database stores option keys; the export resolves them to the current labels. This keeps data readable after wording edits.

@@ -13,9 +13,15 @@
  * "AI tools or web search" split into two options; q12 (stage order) and q13
  * (decide first) removed; q16 and q17 added; q4 and q7 gain a not-applicable
  * choice shown only to respondents with no experience.
+ *
+ * Version 3 (2026-10-29): q15 asks the respondent to pick which of their q14
+ * plants the note is about; stored as { plant, text } instead of a string.
  */
 
-export const QUESTIONS_VERSION = 2;
+export const QUESTIONS_VERSION = 3;
+
+/** Versions whose answers the developer mode knows how to read. */
+export const KNOWN_VERSIONS = [1, 2, 3] as const;
 
 export const SURVEY_TITLE = "How you work with plants";
 
@@ -86,16 +92,20 @@ export type TextListQuestion = {
   optional: true;
 };
 
-export type TextQuestion = {
-  kind: "text";
+/** A note about one plant chosen from the respondent’s own list in another question. */
+export type PlantNoteQuestion = {
+  kind: "plantnote";
   id: string;
   text: string;
   help?: string;
+  /** The textlist question whose non-empty entries become the choices. */
+  sourceQuestion: string;
+  pickLabel: string;
   maxLength: number;
   optional: true;
 };
 
-export type Question = CheckboxQuestion | SingleQuestion | GridQuestion | TextListQuestion | TextQuestion;
+export type Question = CheckboxQuestion | SingleQuestion | GridQuestion | TextListQuestion | PlantNoteQuestion;
 
 export type Section = {
   id: string;
@@ -365,10 +375,12 @@ export const SECTIONS: Section[] = [
         optional: true,
       },
       {
-        kind: "text",
+        kind: "plantnote",
         id: "q15",
         text: "Pick one plant from your list. Why do you prefer it, and under what site conditions would you use it?",
         help: "You may also mention other plants you would combine it with.",
+        sourceQuestion: "q14",
+        pickLabel: "Which plant is this about?",
         maxLength: 300,
         optional: true,
       },

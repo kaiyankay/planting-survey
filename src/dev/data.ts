@@ -1,8 +1,8 @@
 /**
- * Developer-mode data access: who may do what, and the plant-candidate
- * reviews. Backed by Supabase (RLS decides, see supabase.sql) or, when no
- * database is configured, by memory so the workbench can be checked on
- * sample data.
+ * Developer-mode data access: who may do what, the plant-candidate reviews
+ * and the database-requirement decisions. Backed by Supabase (RLS decides,
+ * see supabase.sql) or, in local development without a database, by memory
+ * so the workbench can be checked on sample data.
  */
 import { supabase } from "../lib/supabase.ts";
 import type { ResponseRow } from "../lib/answers.ts";
@@ -17,18 +17,28 @@ export type Review = {
   merged_into: string | null;
   notes: string | null;
 };
+export type DecisionStatus = "proposed" | "include" | "defer" | "exclude";
+export type Decision = {
+  requirement_id: string;
+  status: DecisionStatus;
+  rationale: string | null;
+  updated_by?: string | null;
+  updated_at?: string;
+};
 
 export interface DevStore {
   /** The signed-in account’s role, or null when it is not a member. */
   role(): Promise<Role | null>;
   responses(): Promise<ResponseRow[]>;
   members(): Promise<Member[]>;
-  invite(email: string, role: Exclude<Role, "owner">): Promise<void>;
+  grant(email: string, role: Exclude<Role, "owner">): Promise<void>;
   setRole(email: string, role: Exclude<Role, "owner">): Promise<void>;
   remove(email: string): Promise<void>;
   reviews(): Promise<Review[]>;
   saveReview(review: Review): Promise<void>;
   clearReview(nameKey: string): Promise<void>;
+  decisions(): Promise<Decision[]>;
+  saveDecision(decision: Decision): Promise<void>;
 }
 
 function fail(error: { message: string } | null) {
@@ -61,7 +71,7 @@ export function supabaseStore(email: string): DevStore {
       fail(error);
       return (data ?? []) as Member[];
     },
-    async invite(target, role) {
+    async grant(target, role) {
       const { error } = await db.from("dev_members").insert({ email: target.toLowerCase().trim(), role, invited_by: me });
       fail(error);
     },
@@ -86,13 +96,25 @@ export function supabaseStore(email: string): DevStore {
       const { error } = await db.from("plant_reviews").delete().eq("name_key", nameKey);
       fail(error);
     },
+    async decisions() {
+      const { data, error } = await db.from("requirement_reviews").select("*");
+      fail(error);
+      return (data ?? []) as Decision[];
+    },
+    async saveDecision(decision) {
+      const { error } = await db
+        .from("requirement_reviews")
+        .upsert({ requirement_id: decision.requirement_id, status: decision.status, rationale: decision.rationale, updated_by: me, updated_at: new Date().toISOString() });
+      fail(error);
+    },
   };
 }
 
-/** In-memory store for the no-database case: the visitor acts as owner over sample data. */
+/** In-memory store for local development without a database: the visitor acts as owner over sample data. */
 export function memoryStore(rows: ResponseRow[]): DevStore {
-  const members: Member[] = [{ email: "you@example.com", role: "owner" }];
+  const members: Member[] = [{ email: "owner@example.com", role: "owner" }];
   const reviews = new Map<string, Review>();
+  const decisions = new Map<string, Decision>();
   return {
     async role() {
       return "owner";
@@ -103,7 +125,7 @@ export function memoryStore(rows: ResponseRow[]): DevStore {
     async members() {
       return [...members];
     },
-    async invite(email, role) {
+    async grant(email, role) {
       const e = email.toLowerCase().trim();
       if (members.some((m) => m.email === e)) throw new Error("Already a member");
       members.push({ email: e, role, invited_by: members[0].email });
@@ -124,6 +146,12 @@ export function memoryStore(rows: ResponseRow[]): DevStore {
     },
     async clearReview(nameKey) {
       reviews.delete(nameKey);
+    },
+    async decisions() {
+      return [...decisions.values()];
+    },
+    async saveDecision(decision) {
+      decisions.set(decision.requirement_id, { ...decision, updated_by: members[0].email, updated_at: new Date().toISOString() });
     },
   };
 }

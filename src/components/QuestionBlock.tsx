@@ -1,9 +1,9 @@
 import type { Question } from "../questions.ts";
-import type { Answer, ChoiceAnswer, GridAnswer, TextAnswer, TextListAnswer } from "../lib/answers.ts";
+import type { Answer, ChoiceAnswer, GridAnswer, TextListAnswer } from "../lib/answers.ts";
 import { missingHint } from "../lib/answers.ts";
 import { ChoiceQuestion } from "./ChoiceQuestion.tsx";
 import { GridQuestion } from "./GridQuestion.tsx";
-import { TextListQuestion, TextQuestion } from "./TextQuestions.tsx";
+import { PlantNoteQuestion, TextListQuestion } from "./TextQuestions.tsx";
 
 type Props = {
   question: Question;
@@ -15,9 +15,11 @@ type Props = {
   number: number;
   /** Whether the respondent said they have no planting design experience yet. */
   noExperience: boolean;
+  /** For a plant note: the non-empty plants from its source question. */
+  plants?: string[];
 };
 
-export function QuestionBlock({ question, answer, onChange, showHint, desktop, number, noExperience }: Props) {
+export function QuestionBlock({ question, answer, onChange, showHint, desktop, number, noExperience, plants = [] }: Props) {
   const hint = showHint ? missingHint(question) : "";
   return (
     <section id={`block-${question.id}`} aria-labelledby={`title-${question.id}`} className="scroll-mt-16">
@@ -44,7 +46,7 @@ export function QuestionBlock({ question, answer, onChange, showHint, desktop, n
         ) : question.kind === "textlist" ? (
           <TextListQuestion question={question} answer={answer as TextListAnswer | undefined} onChange={onChange} />
         ) : (
-          <TextQuestion question={question} answer={answer as TextAnswer | undefined} onChange={onChange} />
+          <PlantNoteQuestion question={question} answer={answer} plants={plants} onChange={onChange} />
         )}
       </div>
       {hint && (

@@ -1,6 +1,8 @@
 /**
  * Deterministic sample responses for checking the developer mode without a
- * database. Never used when Supabase is configured.
+ * database (local development only). Most rows use the current format; a
+ * few are written the way version 2 stored them, so the handling of older
+ * answers can be seen too.
  */
 import { ALL_QUESTIONS } from "../questions.ts";
 import type { Answers, ResponseRow } from "../lib/answers.ts";
@@ -20,6 +22,12 @@ const PLANTS = [
   "Rubus spectabilis",
 ];
 
+const NOTES = [
+  "Holds dry shade under conifers and needs almost no care once established.",
+  "Reliable structure in winter; I use it where the ground stays wet in spring.",
+  "Good in a mass along a path edge, with ferns in front.",
+];
+
 function rng(seed: number) {
   let s = seed;
   return () => {
@@ -33,6 +41,7 @@ export function sampleRows(n: number): ResponseRow[] {
   const pick = <T,>(arr: T[]) => arr[Math.floor(rand() * arr.length)];
   const rows: ResponseRow[] = [];
   for (let i = 0; i < n; i++) {
+    const legacy = i % 8 === 5; // written under version 2
     const answers: Answers = {};
     for (const q of ALL_QUESTIONS) {
       switch (q.kind) {
@@ -51,7 +60,7 @@ export function sampleRows(n: number): ResponseRow[] {
           answers[q.id] = { selected: [pick(q.options).key] };
           break;
         case "grid":
-          answers[q.id] = Object.fromEntries(q.rows.map((r) => [r.key, pick(q.columns).key]));
+          answers[q.id] = i % 11 === 3 ? { na: "yes" } : Object.fromEntries(q.rows.map((r) => [r.key, pick(q.columns).key]));
           break;
         case "textlist": {
           const k = 2 + Math.floor(rand() * 4);
@@ -60,16 +69,19 @@ export function sampleRows(n: number): ResponseRow[] {
           answers[q.id] = [...names];
           break;
         }
-        case "text":
-          answers[q.id] = rand() < 0.6 ? "Under big-leaf maples, with sword fern, because it holds the shade." : "";
+        case "plantnote": {
+          const listed = (answers[q.sourceQuestion] as string[]) ?? [];
+          const text = rand() < 0.65 ? pick(NOTES) : "";
+          answers[q.id] = legacy ? text : { plant: text ? listed[0] : "", text };
           break;
+        }
       }
     }
     rows.push({
       id: `sample-${i + 1}`,
       submitted_at: new Date(Date.UTC(2026, 9, 20 + Math.floor(i / 4), 9 + (i % 9))).toISOString(),
       duration_seconds: 120 + Math.floor(rand() * 200),
-      questions_version: 2,
+      questions_version: legacy ? 2 : 3,
       answers,
     });
   }

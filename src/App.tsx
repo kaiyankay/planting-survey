@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ALL_QUESTIONS, NO_EXPERIENCE, SECTIONS, type Question } from "./questions.ts";
-import { GRID_NA, hasAnswer, isComplete, type Answer, type Answers, type ChoiceAnswer, type GridAnswer } from "./lib/answers.ts";
+import { GRID_NA, hasAnswer, isComplete, listEntries, readPlantNote, type Answer, type Answers, type ChoiceAnswer, type GridAnswer } from "./lib/answers.ts";
 import { submitResponse } from "./lib/submit.ts";
 import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery.ts";
 import { QuestionBlock } from "./components/QuestionBlock.tsx";
@@ -37,6 +37,15 @@ export default function App() {
           } else if (other.kind === "grid" && (v as GridAnswer)[GRID_NA] === "yes") {
             delete next[other.id];
           }
+        }
+      }
+      // Editing the plant list: a note attached to a plant that is no longer listed loses its plant, not its text.
+      if (q.kind === "textlist") {
+        const names = listEntries(a);
+        for (const other of ALL_QUESTIONS) {
+          if (other.kind !== "plantnote" || other.sourceQuestion !== q.id) continue;
+          const note = readPlantNote(next[other.id]);
+          if (note.plant && !names.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
         }
       }
       return next;
@@ -105,6 +114,7 @@ export default function App() {
                   desktop={desktop}
                   number={ALL_QUESTIONS.indexOf(q) + 1}
                   noExperience={noExperience}
+                  plants={q.kind === "plantnote" ? listEntries(answers[q.sourceQuestion]) : undefined}
                 />
               ))}
             </div>
@@ -113,11 +123,12 @@ export default function App() {
 
         <div className="mt-12 border-t border-line pt-6">
           <p className="text-[14px] text-mute">
+            {answered} of {ALL_QUESTIONS.length} answered.{" "}
             {missing.size > 0
               ? `${missing.size} question${missing.size === 1 ? "" : "s"} above still need${missing.size === 1 ? "s" : ""} an answer.`
               : remaining > 0
-                ? `${remaining} of ${REQUIRED.length} questions still to answer.`
-                : "Everything’s answered."}
+                ? `${remaining} still need${remaining === 1 ? "s" : ""} an answer before you can submit; the last two can be left blank.`
+                : "Everything needed is answered."}
           </p>
           {status === "error" && (
             <p role="alert" className="mt-2 text-[14px] text-hint">

@@ -112,7 +112,7 @@ export function supabaseStore(email: string): DevStore {
 
 /** In-memory store for local development without a database: the visitor acts as owner over sample data. */
 export function memoryStore(rows: ResponseRow[]): DevStore {
-  const members: Member[] = [{ email: "owner@example.com", role: "owner" }];
+  const members: Member[] = [{ email: "kayyan1998@gmail.com", role: "owner" }];
   const reviews = new Map<string, Review>();
   const decisions = new Map<string, Decision>();
   return {

@@ -374,7 +374,7 @@ function SampleWorkbench() {
       <p className="bg-mark px-6 py-1.5 text-center text-[12px] text-ink">Local sample data: Supabase is not configured, nothing here is saved.</p>
       <Workbench
         store={state.store}
-        me="owner@example.com"
+        me="kayyan1998@gmail.com"
         role="owner"
         rows={state.rows}
         initialReviews={[]}

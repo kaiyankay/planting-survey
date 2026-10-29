@@ -22,10 +22,10 @@ const LETTERS = "ABCDEFGH";
  * so a chosen cell shows a check; in the stacked layout the letter stays and the
  * block fills, exactly like a single-choice row.
  */
-function Cell({ on, letter }: { on: boolean; letter: string }) {
+function Cell({ on, letter }: { on: boolean; letter?: string }) {
   return (
     <span className={`key ${on ? "key-on" : ""}`} aria-hidden>
-      {letter}
+      {letter ?? (on ? <Check /> : null)}
     </span>
   );
 }
@@ -84,7 +84,7 @@ export function GridQuestion({ question, answer, onChange, allowNotApplicable }:
               <span role="rowheader" className="flex items-center border-b border-line py-1.5 pr-3 text-[15px] leading-snug text-ink">
                 {row.label}
               </span>
-              {question.columns.map((col, i) => {
+              {question.columns.map((col) => {
                 const on = value[row.key] === col.key;
                 return (
                   <span key={col.key} role="cell" className="flex items-center justify-center border-b border-line py-1.5">
@@ -96,7 +96,7 @@ export function GridQuestion({ question, answer, onChange, allowNotApplicable }:
                       onClick={() => set(row.key, col.key)}
                       className="flex size-10 items-center justify-center rounded-md transition-colors hover:bg-chip"
                     >
-                      <Cell on={on} letter={LETTERS[i]} />
+                      <Cell on={on} />
                     </button>
                   </span>
                 );

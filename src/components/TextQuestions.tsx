@@ -133,11 +133,14 @@ export function PlantNoteQuestion({
   onChange: (a: PlantNoteAnswer) => void;
 }) {
   const note = readPlantNote(answer);
+  // The box shows the text exactly as typed; readPlantNote trims only for validation and export,
+  // and a trimmed value fed back into the textarea would swallow every trailing space.
+  const rawText = answer && typeof answer === "object" && !Array.isArray(answer) && "text" in answer ? String((answer as { text?: string }).text ?? "") : "";
   if (sourceNotApplicable) {
     return <NaRow on={note.notApplicable} label={question.notApplicable} onToggle={() => onChange(note.notApplicable ? { plant: "", text: "", basis: "" } : { not_applicable: true })} />;
   }
   const chosen = note.plant && plants.includes(note.plant) ? note.plant : "";
-  const current = { plant: chosen, text: note.text, basis: note.basis };
+  const current = { plant: chosen, text: rawText, basis: note.basis };
   return (
     <div className="space-y-4">
       <div>
@@ -169,14 +172,14 @@ export function PlantNoteQuestion({
       </div>
       <div>
         <textarea
-          value={note.text}
+          value={rawText}
           maxLength={question.maxLength}
           rows={4}
           aria-label={question.text}
           onChange={(e) => onChange({ ...current, text: e.target.value })}
           className={`${inputClass} resize-y`}
         />
-        <Counter length={note.text.length} max={question.maxLength} />
+        <Counter length={rawText.length} max={question.maxLength} />
       </div>
       <div>
         <p className="mb-1 text-[13px] text-mute">{question.basis.label}</p>

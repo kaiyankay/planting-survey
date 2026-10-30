@@ -13,9 +13,9 @@ const row = (i: number, answers: ResponseRow["answers"]): ResponseRow => ({
 });
 
 const rows = [
-  row(1, { f1: { entries: [{ name: "Sword fern", role: "perennial_grass", why: "evergreen" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Sword fern", text: "Sword fern for dry shade." } }),
-  row(2, { f1: { entries: [{ name: "Polystichum munitum", role: "perennial_grass" }, { name: "Vine maple", role: "tree" }] }, f2: { plant: "", text: "" } }),
-  row(3, { f1: { entries: [{ name: "salal", role: "groundcover", why: "spreads" }, { name: "Sword  fern", role: "perennial_grass" }] }, f2: { plant: "salal", text: "Salal under conifers." } }),
+  row(1, { f1: { entries: [{ name: "Sword fern", role: "perennial_grass", why: "evergreen" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Sword fern", text: "Sword fern for dry shade.", basis: "project" } }),
+  row(2, { f1: { entries: [{ name: "Polystichum munitum", role: "perennial_grass" }, { name: "Vine maple", role: "tree" }] }, f2: { plant: "", text: "", basis: "" } }),
+  row(3, { f1: { entries: [{ name: "salal", role: "groundcover", why: "spreads" }, { name: "Sword  fern", role: "perennial_grass" }] }, f2: { plant: "salal", text: "Salal under conifers.", basis: "observed" } }),
   row(4, { f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }),
 ];
 
@@ -26,6 +26,8 @@ test("candidates group by name, count respondents, keep roles and reasons, attac
   assert.deepEqual(salal.roles, { shrub: 1, groundcover: 1 });
   assert.deepEqual(salal.raw_names.sort(), ["Salal", "salal"]);
   assert.equal(salal.sources.find((s) => s.response_id === "r3")?.note, "Salal under conifers.");
+  assert.equal(salal.sources.find((s) => s.response_id === "r3")?.note_basis, "observed");
+  assert.equal(salal.sources.find((s) => s.response_id === "r1")?.note_basis, null);
   assert.equal(salal.sources.find((s) => s.response_id === "r3")?.why, "spreads");
   assert.equal(salal.sources.find((s) => s.response_id === "r1")?.note, null, "r1’s note is about sword fern, not salal");
   const fern = c.find((x) => x.key === "sword fern")!;
@@ -67,5 +69,6 @@ test("export separates respondent-provided from researcher-reviewed and carries 
   const salal = out.candidates.find((c) => c.key === "salal")!;
   assert.equal(salal.respondent_provided.mentions, 2);
   assert.equal(salal.respondent_provided.sources[0].role, "shrub");
+  assert.equal(salal.respondent_provided.sources.find((s) => s.response_id === "r3")?.note_basis, "observed");
   assert.equal(salal.researcher_reviewed.status, "candidate");
 });

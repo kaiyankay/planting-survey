@@ -94,7 +94,7 @@ export function sampleRows(n: number): ResponseRow[] {
           const source = answers[q.sourceQuestion];
           const na = Boolean(source && typeof source === "object" && "not_applicable" in source);
           const first = source && typeof source === "object" && "entries" in source ? (source as { entries: PlantEntry[] }).entries[0]?.name : undefined;
-          answers[q.id] = na ? { not_applicable: true } : { plant: first ?? "", text: pick(NOTES) };
+          answers[q.id] = na ? { not_applicable: true } : { plant: first ?? "", text: pick(NOTES), basis: pick(q.basis.options).key };
           break;
         }
       }

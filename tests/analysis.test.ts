@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { choiceStats, grid3Stats, median, normalizePlantName, notApplicableCount, openText, plantNotes, plantTally } from "../src/lib/analysis.ts";
+import { basisLabel, choiceStats, grid3Stats, median, normalizePlantName, notApplicableCount, openText, plantNotes, plantTally } from "../src/lib/analysis.ts";
 import { ALL_QUESTIONS, type CheckboxQuestion, type Grid3Question } from "../src/questions.ts";
 import type { ResponseRow } from "../src/lib/answers.ts";
 import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta, groupTags } from "../src/dev/filters.ts";
@@ -15,10 +15,10 @@ const row = (answers: ResponseRow["answers"], i: number): ResponseRow => ({
 });
 
 const rows = [
-  row({ a1: { selected: ["mla"] }, a2: { selected: ["studio"] }, b1: { hardiness: "must_pass", light: "compared" }, b2: { selected: ["mature_size", "conflicting"] }, f1: { entries: [{ name: "Sword fern", role: "perennial_grass" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Salal", text: "Dry shade." }, d2: "shrubs for shade" }, 1),
-  row({ a1: { selected: ["mla", "designer"] }, a2: { selected: ["professional", "gardening"] }, b1: { hardiness: "must_pass" }, b2: { selected: ["mature_size"] }, f1: { entries: [{ name: "sword  fern ", role: "groundcover" }, { name: "Acer circinatum", role: "tree" }] }, f2: { plant: "", text: "" }, d2: "" }, 2),
+  row({ a1: { selected: ["mla"] }, a2: { selected: ["studio"] }, b1: { hardiness: "must_pass", light: "compared" }, b3: { selected: ["keep_both"] }, b2: { selected: ["mature_size", "conflicting"] }, f1: { entries: [{ name: "Sword fern", role: "perennial_grass" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Salal", text: "Dry shade.", basis: "observed" }, d2: "shrubs for shade" }, 1),
+  row({ a1: { selected: ["mla", "designer"] }, a2: { selected: ["professional", "gardening"] }, b1: { hardiness: "must_pass" }, b2: { selected: ["mature_size"] }, f1: { entries: [{ name: "sword  fern ", role: "groundcover" }, { name: "Acer circinatum", role: "tree" }] }, f2: { plant: "", text: "", basis: "" }, d2: "" }, 2),
   row({ a1: { selected: ["instructor"] }, a2: { selected: ["none"] }, b2: { selected: ["not_looked"] }, d2: "a tree that does not drop much" }, 3),
-  row({ a1: { selected: ["designer"] }, a2: { selected: ["gardening"] }, b1: { hardiness: "rarely" }, f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }, 4),
+  row({ a1: { selected: ["designer"] }, a2: { selected: ["gardening"] }, b1: { hardiness: "not_considered" }, f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }, 4),
 ];
 
 test("choice shares use only respondents who answered the question", () => {
@@ -33,7 +33,7 @@ test("b1 rows count over the respondents who answered that row, with the must-pa
   assert.equal(s.answered, 3, "the respondent with no experience was never asked");
   const hardiness = s.rows.find((r) => r.key === "hardiness")!;
   assert.equal(hardiness.n, 3);
-  assert.deepEqual(hardiness.counts, { must_pass: 2, compared: 0, rarely: 1 });
+  assert.deepEqual(hardiness.counts, { must_pass: 2, compared: 0, not_considered: 1 });
   assert.equal(hardiness.mustPassShare, 2 / 3);
   const light = s.rows.find((r) => r.key === "light")!;
   assert.equal(light.n, 1);
@@ -48,7 +48,9 @@ test("plant tally merges case and spacing, keeps roles, and ignores not-applicab
   assert.equal(t[0].count, 2);
   assert.deepEqual(t[0].roles, { perennial_grass: 1, groundcover: 1 });
   assert.equal(t.find((p) => p.name === "Salal")?.count, 1, "the not-applicable respondent’s typed Salal is not a mention");
-  assert.deepEqual(plantNotes("f2", rows), [{ response_id: "1", plant: "Salal", text: "Dry shade." }]);
+  assert.deepEqual(plantNotes("f2", rows), [{ response_id: "1", plant: "Salal", text: "Dry shade.", basis: "observed" }]);
+  assert.equal(basisLabel("f2", "observed"), "Observed in person");
+  assert.equal(basisLabel("f2", ""), "");
   assert.equal(notApplicableCount("f1", rows), 1);
   assert.equal(notApplicableCount("f2", rows), 1);
 });

@@ -14,8 +14,10 @@ export default function App() {
 
   // Which questions this respondent sees depends on their experience answer.
   const visible = useMemo(() => visibleQuestions(answers), [answers]);
-  const answered = useMemo(() => visible.filter((q) => hasAnswer(q, answers[q.id], answers)).length, [visible, answers]);
-  const progress = visible.length ? answered / visible.length : 0;
+  // Progress counts only the required questions that are shown, so finishing them is 100% even if optional ones are blank.
+  const required = useMemo(() => visible.filter(isRequired), [visible]);
+  const answered = useMemo(() => required.filter((q) => hasAnswer(q, answers[q.id], answers)).length, [required, answers]);
+  const progress = required.length ? answered / required.length : 0;
   const numberOf = (q: Question) => visible.indexOf(q) + 1;
 
   const setAnswer = useCallback((q: Question, a: Answer) => {
@@ -30,8 +32,8 @@ export default function App() {
         for (const other of visibleQuestions(next)) {
           if (other.kind !== "plantnote" || other.sourceQuestion !== q.id) continue;
           const note = readPlantNote(next[other.id]);
-          if (!list.notApplicable && note.notApplicable) next[other.id] = { plant: "", text: "" };
-          else if (note.plant && !names.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
+          if (!list.notApplicable && note.notApplicable) next[other.id] = { plant: "", text: "", basis: "" };
+          else if (note.plant && !names.includes(note.plant)) next[other.id] = { plant: "", text: note.text, basis: note.basis };
         }
       }
       return next;
@@ -78,7 +80,7 @@ export default function App() {
         </div>
         <div className="mx-auto flex max-w-[42rem] items-center justify-end px-6 py-1.5 text-[13px] text-mute">
           <span className="tabular-nums" aria-live="polite">
-            {answered} of {visible.length} answered
+            {answered} of {required.length} answered
           </span>
         </div>
       </div>
@@ -111,7 +113,7 @@ export default function App() {
 
         <div className="mt-12 border-t border-line pt-6">
           <p className="text-[13px] text-mute">
-            {answered} of {visible.length} answered.{" "}
+            {answered} of {required.length} answered.{" "}
             {missing.size > 0
               ? `${missing.size} question${missing.size === 1 ? "" : "s"} above still need${missing.size === 1 ? "s" : ""} an answer.`
               : remaining > 0

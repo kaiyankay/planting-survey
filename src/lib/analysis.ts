@@ -4,7 +4,7 @@
  * respondents who answered the question (n), never of all responses, and
  * an option nobody chose is reported as zero, not as unimportant.
  */
-import type { CheckboxQuestion, Grid3Question, SingleQuestion } from "../questions.ts";
+import { ALL_QUESTIONS, type CheckboxQuestion, type Grid3Question, type SingleQuestion } from "../questions.ts";
 import { normalizePlantName, plantNames, readPlantList, readPlantNote, readText, type ChoiceAnswer, type GridAnswer, type ResponseRow } from "./answers.ts";
 
 export { normalizePlantName };
@@ -80,11 +80,17 @@ export function plantTally(questionId: string, rows: ResponseRow[]): PlantTally[
 }
 
 /** Plant notes with the plant they were attached to. Not-applicable answers are left out. */
-export function plantNotes(questionId: string, rows: ResponseRow[]): { response_id: string; plant: string | null; text: string }[] {
+export function plantNotes(questionId: string, rows: ResponseRow[]): { response_id: string; plant: string | null; text: string; basis: string }[] {
   return rows
     .map((r) => ({ response_id: r.id, ...readPlantNote(r.answers[questionId]) }))
     .filter((n) => !n.notApplicable && n.text.length > 0)
-    .map(({ response_id, plant, text }) => ({ response_id, plant, text }));
+    .map(({ response_id, plant, text, basis }) => ({ response_id, plant, text, basis }));
+}
+
+/** The label of a plant note’s basis, or empty. */
+export function basisLabel(questionId: string, key: string): string {
+  const q = ALL_QUESTIONS.find((x) => x.id === questionId);
+  return q && q.kind === "plantnote" ? (q.basis.options.find((o) => o.key === key)?.label ?? "") : "";
 }
 
 /** How many respondents answered a plant list or plant note with “not applicable”. */

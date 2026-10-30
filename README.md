@@ -1,13 +1,13 @@
 # How you work with plants
 
-A short, anonymous, mobile-first survey for a UBC Master of Landscape Architecture research project (Planting Intelligence). Fourteen questions ask how people choose plants for Metro Vancouver today, what they cannot find out, how they would ask a plant database, what makes them trust others’ notes, and which plants they would consider. The full specification and the reasoning behind each question is in [docs/survey-spec.md](docs/survey-spec.md).
+A short, anonymous, mobile-first survey for a UBC Master of Landscape Architecture research project (Planting Intelligence). Sixteen questions ask how people choose plants for Metro Vancouver today, what they cannot find out, how they would ask a plant database, what makes them trust others’ notes, and which plants they would consider. The full specification and the reasoning behind each question is in [docs/survey-spec.md](docs/survey-spec.md).
 
 Vite + React + TypeScript + Tailwind on the front end. Responses go into one Supabase table. The site is static and deploys to GitHub Pages.
 
 The one site has two modes:
 
 - **Survey** at the root: what respondents see.
-- **Developer mode** at `#/dev` (also the small “Developer” link at the foot of the survey): sign in by email link. Members see one shared selection (roles from a1, experience from a2) and two tabs: **Survey analytics** (counts with their base n, the b1 matrix as a 10 × 3 table with each row’s must-pass share, an **Open responses** block listing every free-text answer from b3, c3, d1, d2 and f2 verbatim with the respondent’s a1 / a2 groups, filterable by experience and exportable as one CSV, plus the raw CSV and an analysis JSON) and **Plant candidates** (the plants named in f1 with role, reason and mention count, and the note attached in f2; merge spellings, shortlist, add notes; exported as `plant_candidates.json`). Nothing is categorised or counted automatically beyond these. In local development without Supabase it opens on generated sample data; a production build without Supabase shows a configuration error instead.
+- **Developer mode** at `#/dev` (also the small “Developer” link at the foot of the survey): sign in by email link. Members see one shared selection (roles from a1, experience from a2) and two tabs: **Survey analytics** (counts with their base n, the b1 matrix as a 10 × 3 table with each row’s must-pass share, an **Open responses** block listing every free-text answer from b4, c3, d1, d2 and f2 verbatim (f2 with what the note was based on) with the respondent’s a1 / a2 groups, filterable by experience and exportable as one CSV, plus the raw CSV and an analysis JSON) and **Plant candidates** (the plants named in f1 with role, reason and mention count, and the note attached in f2; merge spellings, shortlist, add notes; exported as `plant_candidates.json`). Nothing is categorised or counted automatically beyond these. In local development without Supabase it opens on generated sample data; a production build without Supabase shows a configuration error instead.
 
 ## Run it locally
 
@@ -95,7 +95,7 @@ This downloads every row and writes `responses-YYYY-MM-DD.csv` in the project fo
 - Project Settings → API → `service_role` key.
 - Put it in `.env` as `SUPABASE_SERVICE_ROLE_KEY`. `.env` and `*.csv` are git-ignored. Never put this key in a `VITE_` variable or in the GitHub repository.
 
-CSV layout: one column per question id in survey order (`a1`, `a2`, `b1_hardiness` … `b1_invasive`, `b2`, `b3`, `c1`, `c2`, `c3`, `d1`, `d2`, `e1`, `e2`, `f1_1_name`, `f1_1_role`, `f1_1_why` … `f1_5_why`, `f1_not_applicable`, `f2_plant`, `f2`). Multi-selects are joined with ` | `; an “Other” choice appears as `Other: <text>`. Questions a respondent was not shown (b1, section C and section F for people with no planting experience) are absent from their stored answers and blank in the CSV. A plant list or note answered “not applicable” says so in `f1_not_applicable` / `f2_plant`. Every row carries `questions_version` = 1.
+CSV layout: one column per question id in survey order (`a1`, `a2`, `a3`, `b1_hardiness` … `b1_invasive`, `b2`, `b3`, `b4`, `c1`, `c2`, `c3`, `f1_1_name`, `f1_1_role`, `f1_1_why` … `f1_5_why`, `f1_not_applicable`, `f2_plant`, `f2`, `f2_basis`, `d1`, `d2`, `e1`, `e2`). Multi-selects are joined with ` | `; an “Other” choice appears as `Other: <text>`. Questions a respondent was not shown (b1, section C and section F for people with no planting experience) are absent from their stored answers and blank in the CSV. A plant list or note answered “not applicable” says so in `f1_not_applicable` / `f2_plant`. Every row carries `questions_version` = 1.
 
 ## Editing the questions
 
@@ -108,10 +108,10 @@ All copy lives in [`src/questions.ts`](src/questions.ts): title, intro, sections
 
 ## Choices made where the spec left room
 
-- **One scrolling page.** Intro, six sections and one Submit button on a single page; the thin line at the top fills as questions are completed. Submit checks every shown required question, scrolls to the first unfinished one and shows a hint under it.
+- **One scrolling page.** Intro, six sections (A, B, C, F, D, E) and one Submit button on a single page; the thin line at the top counts only the required questions shown, so it reaches 100% when everything needed is answered even if b4, d1 or the reason column are blank. Submit checks every shown required question, scrolls to the first unfinished one and shows a hint under it.
 - **Skipping.** `hasExperience` is false only when a2 is exactly “None yet”; then b1, section C and section F are not rendered, not validated and not stored. Before a2 is answered everything is shown.
-- **f1.** Three different plant names are needed, compared without case or extra spaces, each with a role (“Not sure” counts). The reason column is optional. The not-applicable option keeps anything typed so it can be unticked.
-- **f2.** A note needs a plant that is still on the f1 list plus text; when f1 is not applicable, f2 offers only its own not-applicable option, and switching f1 back to plants resets it.
+- **f1.** At least one plant name with a role (“Not sure” counts); names that differ only in case or spacing count once. The reason column is optional. The not-applicable option keeps anything typed so it can be unticked.
+- **f2.** A note needs a plant that is still on the f1 list, text, and a basis (used in my own project / observed / read / a combination), stored as `{ plant, text, basis }`; when f1 is not applicable, f2 offers only its own not-applicable option, and switching f1 back to plants resets it.
 - **Hidden questions are omitted** from stored answers rather than written as null.
 - **Developer mode** keeps the sharing and review mechanism from before; the former Database insights tab and its requirement catalogue were removed in favour of listing open answers verbatim.
 - **Saved only when saved.** The closing screen appears only after the database confirms the insert; otherwise the error stays on screen with the Submit button. In `npm run dev` without Supabase env vars the response is logged instead.

@@ -20,7 +20,7 @@ export const SURVEY_TITLE = "How you work with plants";
 
 export const INTRO = {
   lead: "We’re building a plant knowledge database for Metro Vancouver and want to understand how people actually choose plants today.",
-  note: "About 7 minutes, anonymous. Studio projects and your own garden both count as experience.",
+  note: "About 8 minutes, anonymous. Studio projects and your own garden both count as experience.",
 };
 
 export const CLOSING = {
@@ -67,7 +67,7 @@ export type SingleQuestion = Base & {
 /** A matrix with three fixed columns; every row must be answered. */
 export type Grid3Question = Base & {
   kind: "grid3";
-  columns: { key: "must_pass" | "compared" | "rarely"; label: string; note: string }[];
+  columns: { key: "must_pass" | "compared" | "not_considered"; label: string; note: string }[];
   rows: { key: string; label: string }[];
 };
 
@@ -103,6 +103,8 @@ export type PlantNoteQuestion = Base & {
   sourceQuestion: string;
   pickLabel: string;
   maxLength: number;
+  /** How the knowledge was acquired; stored with the note, never turned into a confidence score. */
+  basis: { label: string; options: Option[] };
   /** The only choice offered when the source list is not applicable. */
   notApplicable: string;
 };
@@ -147,6 +149,17 @@ export const SECTIONS: Section[] = [
           { key: "none", label: "None yet", exclusive: true, fixed: true },
         ],
       },
+      {
+        kind: "single",
+        id: "a3",
+        text: "Where has most of your planting experience been?",
+        options: [
+          { key: "metro_vancouver", label: "Metro Vancouver" },
+          { key: "bc_pnw", label: "Elsewhere in BC or the Pacific Northwest" },
+          { key: "other_climate", label: "A different climate" },
+          { key: "none", label: "No experience yet" },
+        ],
+      },
     ],
   },
   {
@@ -156,12 +169,13 @@ export const SECTIONS: Section[] = [
       {
         kind: "grid3",
         id: "b1",
-        text: "When you shortlist a plant, how does each attribute enter your decision?",
+        text: "Think of the most recent project or garden you chose plants for. How did each attribute enter that decision?",
+        help: "Answer for that one project, not for how you work in general",
         requiresExperience: true,
         columns: [
-          { key: "must_pass", label: "Must pass", note: "I exclude plants that fail" },
-          { key: "compared", label: "Compared later", note: "Matters when choosing between candidates" },
-          { key: "rarely", label: "Rarely look at it", note: "" },
+          { key: "must_pass", label: "Must pass", note: "I would have excluded a plant if it failed" },
+          { key: "compared", label: "Compared later", note: "I used it to compare candidates" },
+          { key: "not_considered", label: "Not considered", note: "It didn’t come into this project" },
         ],
         rows: [
           { key: "hardiness", label: "Hardiness" },
@@ -193,8 +207,21 @@ export const SECTIONS: Section[] = [
         ],
       },
       {
-        kind: "shorttext",
+        kind: "single",
         id: "b3",
+        text: "When two sources disagree about a plant (say, one gives a mature height of 6 m and another 10 m), what do you usually do?",
+        options: [
+          { key: "trusted_source", label: "Go with the source I trust most" },
+          { key: "local_example", label: "Look for a local example or someone’s local experience" },
+          { key: "authoritative", label: "Check the original or most authoritative reference" },
+          { key: "keep_both", label: "Keep both values and note the range" },
+          { key: "cautious", label: "Take the more cautious value for design" },
+          { key: "not_yet", label: "I haven’t run into this yet" },
+        ],
+      },
+      {
+        kind: "shorttext",
+        id: "b4",
         text: "Briefly, one specific thing about a plant you wanted to know and couldn’t find.",
         help: "Optional",
         required: false,
@@ -217,6 +244,7 @@ export const SECTIONS: Section[] = [
           { key: "development", label: "During design development" },
           { key: "planting_plan", label: "When preparing the planting plan" },
           { key: "no_clear_moment", label: "It keeps changing, no clear moment" },
+          { key: "someone_else", label: "Someone else decides (instructor, client, municipality)" },
         ],
       },
       {
@@ -230,6 +258,7 @@ export const SECTIONS: Section[] = [
           { key: "databases", label: "Online plant databases" },
           { key: "books", label: "Books and manuals" },
           { key: "municipal_lists", label: "Municipal or regional plant lists" },
+          { key: "nursery_suppliers", label: "Nursery catalogues or plant suppliers" },
           { key: "software_libraries", label: "Software plant libraries (Landmark, Land F/X…)" },
           { key: "colleagues", label: "Colleagues or instructors" },
           { key: "own_projects", label: "My own past projects" },
@@ -245,7 +274,49 @@ export const SECTIONS: Section[] = [
         required: true,
         maxLength: 1500,
         example:
-          "I started from a planting plan the studio gave us as precedent, then checked each plant on Missouri Botanical Garden for size and hardiness. I dropped two because they’d get too tall for the overhead wires. The final list went into a Rhino layer and an Excel schedule, which I still have but haven’t opened since.",
+          "I started from a planting plan the studio gave us as precedent, then checked each plant on Missouri Botanical Garden for size and hardiness. I dropped two because they’d get too tall for the overhead wires. The final list went into a Rhino layer and an Excel plant schedule.",
+      },
+    ],
+  },
+  {
+    id: "plants",
+    title: "Your plants",
+    requiresExperience: true,
+    questions: [
+      {
+        kind: "plantlist",
+        id: "f1",
+        text: "Name up to 5 plants you’d consider for Metro Vancouver, ideally three or more.",
+        help: "Common or scientific names are fine",
+        count: 5,
+        min: 1,
+        roles: [
+          { key: "tree", label: "Tree" },
+          { key: "shrub", label: "Shrub" },
+          { key: "perennial_grass", label: "Perennial or grass" },
+          { key: "groundcover", label: "Groundcover" },
+          { key: "not_sure", label: "Not sure" },
+        ],
+        notApplicable: "I haven’t selected plants for a design in this region yet",
+      },
+      {
+        kind: "plantnote",
+        id: "f2",
+        text: "Pick one plant from your list and write the note you’d leave for a colleague: where it was growing, how it performed, and anything you’d warn them about.",
+        help: "First-hand use, site observation and things you’ve read are all welcome",
+        sourceQuestion: "f1",
+        pickLabel: "Which plant is this about?",
+        maxLength: 300,
+        basis: {
+          label: "This note is based on",
+          options: [
+            { key: "project", label: "Used in my own project" },
+            { key: "observed", label: "Observed in person" },
+            { key: "read", label: "Read or learned from another source" },
+            { key: "mixed", label: "A combination of these" },
+          ],
+        },
+        notApplicable: "Not applicable, I haven’t selected plants for a design in this region yet",
       },
     ],
   },
@@ -295,7 +366,7 @@ export const SECTIONS: Section[] = [
         kind: "checkbox",
         id: "e2",
         text: "If an AI tool suggested a plant, what would make you take it seriously?",
-        help: "Choose 2",
+        help: "Choose up to 2",
         max: 2,
         shuffle: true,
         options: [
@@ -305,38 +376,6 @@ export const SECTIONS: Section[] = [
           { key: "reasoning", label: "It explains its reasoning" },
           { key: "nothing", label: "Nothing, I’d verify it myself anyway", exclusive: true, fixed: true },
         ],
-      },
-    ],
-  },
-  {
-    id: "plants",
-    title: "Your plants",
-    requiresExperience: true,
-    questions: [
-      {
-        kind: "plantlist",
-        id: "f1",
-        text: "Name 3–5 plants you’d consider for Metro Vancouver.",
-        help: "Common or scientific names are fine",
-        count: 5,
-        min: 3,
-        roles: [
-          { key: "tree", label: "Tree" },
-          { key: "shrub", label: "Shrub" },
-          { key: "perennial_grass", label: "Perennial or grass" },
-          { key: "groundcover", label: "Groundcover" },
-          { key: "not_sure", label: "Not sure" },
-        ],
-        notApplicable: "I haven’t selected plants for a design in this region yet",
-      },
-      {
-        kind: "plantnote",
-        id: "f2",
-        text: "Pick one plant from your list and write the note you’d leave for a colleague: where you used or saw it, how it performed, and anything you’d warn them about.",
-        sourceQuestion: "f1",
-        pickLabel: "Which plant is this about?",
-        maxLength: 300,
-        notApplicable: "Not applicable, I haven’t selected plants for a design in this region yet",
       },
     ],
   },

@@ -12,7 +12,8 @@ export type TextAnswer = string;
 export type PlantEntry = { name: string; role: string; why?: string };
 /** The plant rows as typed, or the admission that none apply (typed rows are kept so the respondent can change their mind). */
 export type PlantListAnswer = { not_applicable?: true; entries: PlantEntry[] };
-export type PlantNoteAnswer = { plant: string; text: string } | { not_applicable: true };
+/** A note about one listed plant, with how the knowledge was acquired (basis); or not applicable when the list is. */
+export type PlantNoteAnswer = { plant: string; text: string; basis: string } | { not_applicable: true };
 
 export type Answer = ChoiceAnswer | GridAnswer | TextAnswer | PlantListAnswer | PlantNoteAnswer;
 export type Answers = Record<string, Answer>;
@@ -66,14 +67,14 @@ export function distinctEntries(entries: PlantEntry[]): PlantEntry[] {
   return out;
 }
 
-export function readPlantNote(a: Answer | undefined): { plant: string | null; text: string; notApplicable: boolean } {
-  if (!a || typeof a !== "object" || Array.isArray(a)) return { plant: null, text: "", notApplicable: false };
-  if ("not_applicable" in a && !("entries" in a) && !("text" in a)) return { plant: null, text: "", notApplicable: true };
+export function readPlantNote(a: Answer | undefined): { plant: string | null; text: string; basis: string; notApplicable: boolean } {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return { plant: null, text: "", basis: "", notApplicable: false };
+  if ("not_applicable" in a && !("entries" in a) && !("text" in a)) return { plant: null, text: "", basis: "", notApplicable: true };
   if ("text" in a) {
     const p = clean((a as { plant?: string }).plant);
-    return { plant: p || null, text: ((a as { text?: string }).text ?? "").trim(), notApplicable: false };
+    return { plant: p || null, text: ((a as { text?: string }).text ?? "").trim(), basis: clean((a as { basis?: string }).basis), notApplicable: false };
   }
-  return { plant: null, text: "", notApplicable: false };
+  return { plant: null, text: "", basis: "", notApplicable: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +119,7 @@ function plantNoteComplete(q: PlantNoteQuestion, a: Answer | undefined, all?: An
   const source = all ? readPlantList(all[q.sourceQuestion]) : null;
   if (source?.notApplicable) return note.notApplicable;
   if (note.notApplicable || !note.text || !note.plant) return false;
+  if (!q.basis.options.some((o) => o.key === note.basis)) return false;
   if (!source) return true;
   return source.entries.some((e) => normalizePlantName(e.name) === normalizePlantName(note.plant!));
 }
@@ -170,12 +172,14 @@ export function missingHint(q: Question, a?: Answer, all?: Answers): string {
       const distinct = distinctEntries(l.entries);
       if (l.entries.length >= q.min && distinct.length < q.min) return `Please list ${q.min} different plants`;
       if (distinct.length >= q.min && distinct.filter((e) => roles.has(e.role)).length < q.min) return "Choose a role for each plant";
-      return `Please list at least ${q.min} plants, each with a role`;
+      return `Please list at least ${q.min} plant${q.min === 1 ? "" : "s"}, each with a role`;
     }
     case "plantnote": {
       const sourceNa = all ? readPlantList(all[q.sourceQuestion]).notApplicable : false;
       if (sourceNa) return "Tick the option above to continue";
-      return "Choose one of your plants above and write the note";
+      const note = readPlantNote(a);
+      if (note.plant && note.text && !note.basis) return "Say what this note is based on";
+      return "Choose one of your plants above, write the note and say what it is based on";
     }
   }
 }
@@ -212,7 +216,7 @@ export function csvColumns(): string[] {
         cols.push(`${q.id}_not_applicable`);
         break;
       case "plantnote":
-        cols.push(`${q.id}_plant`, q.id);
+        cols.push(`${q.id}_plant`, q.id, `${q.id}_basis`);
         break;
       default:
         cols.push(q.id);
@@ -283,6 +287,7 @@ export function flattenResponse(row: ResponseRow): Record<string, string> {
         const n = readPlantNote(a);
         out[`${q.id}_plant`] = n.notApplicable ? "Not applicable" : (n.plant ?? "");
         out[q.id] = n.text;
+        out[`${q.id}_basis`] = n.notApplicable ? "Not applicable" : (q.basis.options.find((o) => o.key === n.basis)?.label ?? "");
         break;
       }
     }

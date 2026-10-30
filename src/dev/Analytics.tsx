@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { ALL_QUESTIONS, QUESTIONS_VERSION, SECTIONS, type Question } from "../questions.ts";
 import { csvOf, plantNames, readPlantList, toCsv, type ResponseRow } from "../lib/answers.ts";
-import { choiceStats, grid3Stats, median, notApplicableCount, openText, otherTexts, plantNotes } from "../lib/analysis.ts";
+import { basisLabel, choiceStats, grid3Stats, median, notApplicableCount, openText, otherTexts, plantNotes } from "../lib/analysis.ts";
 import { groupTags } from "./filters.ts";
 import { download } from "./data.ts";
 import { About, Bars, Button, Chip, Section, T, TextList, Tile, Toolbar, pct } from "./ui.tsx";
@@ -9,7 +9,7 @@ import { About, Bars, Button, Chip, Section, T, TextList, Tile, Toolbar, pct } f
 type Props = { rows: ResponseRow[]; total: number; meta: unknown };
 
 /** The questions whose answers are free text, listed verbatim under Open responses. */
-const OPEN_QUESTIONS = ["b3", "c3", "d1", "d2", "f2"];
+const OPEN_QUESTIONS = ["b4", "c3", "d1", "d2", "f2"];
 
 /** Survey analytics over the current selection: counts with their base n, the b1 matrix, open answers verbatim, raw exports. */
 export function Analytics({ rows, total, meta }: Props) {
@@ -159,7 +159,12 @@ function Body({ q, rows }: { q: Question; rows: ResponseRow[] }) {
     case "plantnote": {
       const notes = plantNotes(q.id, rows);
       const na = notApplicableCount(q.id, rows);
-      return <TextList label={`${notes.length} notes${na ? ` · ${na} not applicable` : ""}`} items={notes.map((n) => `${n.plant ?? "No plant"}: ${n.text}`)} />;
+      return (
+        <TextList
+          label={`${notes.length} notes${na ? ` · ${na} not applicable` : ""}`}
+          items={notes.map((n) => `${n.plant ?? "No plant"}: ${n.text}${n.basis ? ` [${basisLabel(q.id, n.basis)}]` : ""}`)}
+        />
+      );
     }
   }
 }
@@ -170,13 +175,14 @@ type ExpFilter = "all" | "none" | "experienced";
 function OpenResponses({ rows, stamp }: { rows: ResponseRow[]; stamp: string }) {
   const [exp, setExp] = useState<ExpFilter>("all");
   const records = useMemo(() => {
-    const out: { response_id: string; question: string; a1: string; a2: string; text: string; hasNone: boolean }[] = [];
+    const out: { response_id: string; question: string; a1: string; a2: string; text: string; basis: string; hasNone: boolean }[] = [];
     for (const r of rows) {
       const tags = groupTags(r);
       const hasNone = ((r.answers.a2 as { selected?: string[] } | undefined)?.selected ?? []).includes("none");
       for (const id of OPEN_QUESTIONS) {
         const text = openText(id, r);
-        if (text) out.push({ response_id: r.id, question: id, a1: tags.a1.join(" | "), a2: tags.a2.join(" | "), text, hasNone });
+        const basis = id === "f2" ? basisLabel(id, (r.answers.f2 as { basis?: string } | undefined)?.basis ?? "") : "";
+        if (text) out.push({ response_id: r.id, question: id, a1: tags.a1.join(" | "), a2: tags.a2.join(" | "), text, basis, hasNone });
       }
     }
     return out;
@@ -227,6 +233,7 @@ function OpenResponses({ rows, stamp }: { rows: ResponseRow[]; stamp: string }) 
                     <p className={`${T.body} leading-snug`}>{rec.text}</p>
                     <p className={`${T.meta} mt-1`}>
                       {rec.a1 || "no role given"} · {rec.a2 || "no experience given"}
+                      {rec.basis ? ` · based on: ${rec.basis}` : ""}
                     </p>
                   </li>
                 ))}

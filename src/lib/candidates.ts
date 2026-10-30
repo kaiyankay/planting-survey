@@ -26,8 +26,9 @@ export type Source = {
   why: string | null;
   /** The other plants in the same list, as typed. */
   listed_with: string[];
-  /** The respondent’s note, only when they attached it to this plant. */
+  /** The respondent’s note, only when they attached it to this plant, and what it was based on. */
   note: string | null;
+  note_basis: string | null;
 };
 
 export type Candidate = {
@@ -72,6 +73,7 @@ function collectGroups(rows: ResponseRow[], listQuestion: string, noteQuestion: 
         why: e.why ?? null,
         listed_with: list.entries.filter((x) => x !== e).map((x) => x.name),
         note: noteKey === key && !note.notApplicable && note.text ? note.text : null,
+        note_basis: noteKey === key && !note.notApplicable && note.text ? note.basis || null : null,
       });
       groups.set(key, g);
     }
@@ -176,6 +178,7 @@ export function candidatesExport(candidates: Candidate[], meta: { questions_vers
           why: s.why,
           listed_with: s.listed_with,
           attached_note: s.note,
+          note_basis: s.note_basis,
         })),
       },
       researcher_reviewed: { reviewed_name: c.reviewed_name, display_name: c.name, status: c.status, notes: c.notes, merged_from: c.merged_from },

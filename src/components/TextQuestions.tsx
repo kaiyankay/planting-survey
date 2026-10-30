@@ -134,9 +134,10 @@ export function PlantNoteQuestion({
 }) {
   const note = readPlantNote(answer);
   if (sourceNotApplicable) {
-    return <NaRow on={note.notApplicable} label={question.notApplicable} onToggle={() => onChange(note.notApplicable ? { plant: "", text: "" } : { not_applicable: true })} />;
+    return <NaRow on={note.notApplicable} label={question.notApplicable} onToggle={() => onChange(note.notApplicable ? { plant: "", text: "", basis: "" } : { not_applicable: true })} />;
   }
   const chosen = note.plant && plants.includes(note.plant) ? note.plant : "";
+  const current = { plant: chosen, text: note.text, basis: note.basis };
   return (
     <div className="space-y-4">
       <div>
@@ -153,7 +154,7 @@ export function PlantNoteQuestion({
                   type="button"
                   role="radio"
                   aria-checked={on}
-                  onClick={() => onChange({ plant: p, text: note.text })}
+                  onClick={() => onChange({ ...current, plant: p })}
                   className={[rowClass, "items-center", on ? "bg-chip" : "hover:bg-chip"].join(" ")}
                 >
                   <span className={`key ${on ? "key-on" : ""}`} aria-hidden>
@@ -172,10 +173,33 @@ export function PlantNoteQuestion({
           maxLength={question.maxLength}
           rows={4}
           aria-label={question.text}
-          onChange={(e) => onChange({ plant: chosen, text: e.target.value })}
+          onChange={(e) => onChange({ ...current, text: e.target.value })}
           className={`${inputClass} resize-y`}
         />
         <Counter length={note.text.length} max={question.maxLength} />
+      </div>
+      <div>
+        <p className="mb-1 text-[13px] text-mute">{question.basis.label}</p>
+        <div role="radiogroup" aria-label={question.basis.label} className="space-y-0.5">
+          {question.basis.options.map((o, i) => {
+            const on = note.basis === o.key;
+            return (
+              <button
+                key={o.key}
+                type="button"
+                role="radio"
+                aria-checked={on}
+                onClick={() => onChange({ ...current, basis: o.key })}
+                className={[rowClass, "items-center", on ? "bg-chip" : "hover:bg-chip"].join(" ")}
+              >
+                <span className={`key ${on ? "key-on" : ""}`} aria-hidden>
+                  {LETTERS[i]}
+                </span>
+                <span className="flex-1">{o.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

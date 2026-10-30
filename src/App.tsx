@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { ALL_QUESTIONS, NO_EXPERIENCE, SECTIONS, type Question } from "./questions.ts";
-import { GRID_NA, hasAnswer, isComplete, listEntries, readPlantNote, type Answer, type Answers, type ChoiceAnswer, type GridAnswer } from "./lib/answers.ts";
+import { GRID_NA, hasAnswer, isComplete, listEntries, readList, readPlantNote, type Answer, type Answers, type ChoiceAnswer, type GridAnswer } from "./lib/answers.ts";
 import { submitResponse } from "./lib/submit.ts";
 import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery.ts";
 import { QuestionBlock } from "./components/QuestionBlock.tsx";
@@ -40,13 +40,15 @@ export default function App() {
           }
         }
       }
-      // Editing the plant list: a note attached to a plant that is no longer listed loses its plant, not its text.
+      // Editing the plant list: a note attached to a plant that is no longer listed loses its plant, not its
+      // text; and a note marked not applicable is reset once the list has plants again.
       if (q.kind === "textlist") {
-        const names = listEntries(a);
+        const list = readList(a);
         for (const other of ALL_QUESTIONS) {
           if (other.kind !== "plantnote" || other.sourceQuestion !== q.id) continue;
           const note = readPlantNote(next[other.id]);
-          if (note.plant && !names.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
+          if (!list.notApplicable && note.notApplicable) next[other.id] = { plant: "", text: "" };
+          else if (note.plant && !list.entries.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
         }
       }
       return next;
@@ -116,6 +118,8 @@ export default function App() {
                   number={ALL_QUESTIONS.indexOf(q) + 1}
                   noExperience={noExperience}
                   plants={q.kind === "plantnote" ? listEntries(answers[q.sourceQuestion]) : undefined}
+                  sourceNotApplicable={q.kind === "plantnote" ? readList(answers[q.sourceQuestion]).notApplicable : undefined}
+                  answers={answers}
                 />
               ))}
             </div>

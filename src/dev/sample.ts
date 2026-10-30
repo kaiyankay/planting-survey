@@ -66,13 +66,16 @@ export function sampleRows(n: number): ResponseRow[] {
           const k = 3 + Math.floor(rand() * 3);
           const names = new Set<string>();
           while (names.size < k) names.add(pick(PLANTS));
-          answers[q.id] = [...names];
+          // One in seven current-version respondents cannot name three plants yet.
+          answers[q.id] = !legacy && i % 7 === 2 ? { not_applicable: true, entries: [] } : [...names];
           break;
         }
         case "plantnote": {
-          const listed = (answers[q.sourceQuestion] as string[]) ?? [];
+          const source = answers[q.sourceQuestion];
+          const na = !Array.isArray(source);
+          const listed = Array.isArray(source) ? source : [];
           const text = legacy && rand() < 0.4 ? "" : pick(NOTES);
-          answers[q.id] = legacy ? text : { plant: listed[0], text };
+          answers[q.id] = legacy ? text : na ? { not_applicable: true } : { plant: listed[0], text };
           break;
         }
       }
@@ -81,7 +84,7 @@ export function sampleRows(n: number): ResponseRow[] {
       id: `sample-${i + 1}`,
       submitted_at: new Date(Date.UTC(2026, 9, 20 + Math.floor(i / 4), 9 + (i % 9))).toISOString(),
       duration_seconds: 120 + Math.floor(rand() * 200),
-      questions_version: legacy ? 2 : 4,
+      questions_version: legacy ? 2 : 5,
       answers,
     });
   }

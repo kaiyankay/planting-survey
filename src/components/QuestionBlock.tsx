@@ -1,5 +1,5 @@
 import type { Question } from "../questions.ts";
-import type { Answer, ChoiceAnswer, GridAnswer, TextListAnswer } from "../lib/answers.ts";
+import type { Answer, Answers, ChoiceAnswer, GridAnswer } from "../lib/answers.ts";
 import { missingHint } from "../lib/answers.ts";
 import { ChoiceQuestion } from "./ChoiceQuestion.tsx";
 import { GridQuestion } from "./GridQuestion.tsx";
@@ -17,10 +17,14 @@ type Props = {
   noExperience: boolean;
   /** For a plant note: the non-empty plants from its source question. */
   plants?: string[];
+  /** For a plant note: whether the source list was marked not applicable. */
+  sourceNotApplicable?: boolean;
+  /** Every answer so far, for hints that depend on another question. */
+  answers?: Answers;
 };
 
-export function QuestionBlock({ question, answer, onChange, showHint, desktop, number, noExperience, plants = [] }: Props) {
-  const hint = showHint ? missingHint(question) : "";
+export function QuestionBlock({ question, answer, onChange, showHint, desktop, number, noExperience, plants = [], sourceNotApplicable = false, answers }: Props) {
+  const hint = showHint ? missingHint(question, answer, answers) : "";
   return (
     <section id={`block-${question.id}`} aria-labelledby={`title-${question.id}`} className="scroll-mt-16">
       <h3 id={`title-${question.id}`} className="text-[17px] font-semibold leading-snug text-ink">
@@ -44,9 +48,9 @@ export function QuestionBlock({ question, answer, onChange, showHint, desktop, n
             allowNotApplicable={noExperience}
           />
         ) : question.kind === "textlist" ? (
-          <TextListQuestion question={question} answer={answer as TextListAnswer | undefined} onChange={onChange} />
+          <TextListQuestion question={question} answer={answer} onChange={onChange} />
         ) : (
-          <PlantNoteQuestion question={question} answer={answer} plants={plants} onChange={onChange} />
+          <PlantNoteQuestion question={question} answer={answer} plants={plants} sourceNotApplicable={sourceNotApplicable} onChange={onChange} />
         )}
       </div>
       {hint && (

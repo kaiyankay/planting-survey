@@ -5,7 +5,9 @@
  * an option nobody chose is reported as zero, not as unimportant.
  */
 import type { CheckboxQuestion, GridQuestion, SingleQuestion } from "../questions.ts";
-import { GRID_NA, listEntries, readPlantNote, type ChoiceAnswer, type GridAnswer, type ResponseRow } from "./answers.ts";
+import { GRID_NA, listEntries, normalizePlantName, readList, readPlantNote, type ChoiceAnswer, type GridAnswer, type ResponseRow } from "./answers.ts";
+
+export { normalizePlantName };
 
 export type Count = { key: string; label: string; count: number; share: number };
 
@@ -77,16 +79,6 @@ export function gridStats(q: GridQuestion, rows: ResponseRow[]): GridStats {
 
 export type PlantEntry = { name: string; count: number; spellings: string[] };
 
-/** Case- and whitespace-insensitive key for grouping plant names. Nothing more: no fuzzy matching. */
-export function normalizePlantName(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[‘’“”"]/g, "'")
-    .replace(/\s+/g, " ")
-    .replace(/^[\s'.,;:-]+|[\s'.,;:-]+$/g, "")
-    .trim();
-}
-
 /** Tally of plants named in a text-list question, grouped by normalized name, most common first. */
 export function plantTally(questionId: string, rows: ResponseRow[]): PlantEntry[] {
   const groups = new Map<string, { count: number; spellings: Map<string, number> }>();
@@ -110,11 +102,17 @@ export function plantTally(questionId: string, rows: ResponseRow[]): PlantEntry[
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
-/** Plant notes with the plant they were explicitly attached to; legacy notes come back with plant null. */
+/** Plant notes with the plant they were explicitly attached to; legacy notes come back with plant null. Not-applicable answers are left out. */
 export function plantNotes(questionId: string, rows: ResponseRow[]): { response_id: string; plant: string | null; text: string; legacy: boolean }[] {
   return rows
     .map((r) => ({ response_id: r.id, ...readPlantNote(r.answers[questionId]) }))
-    .filter((n) => n.text.length > 0);
+    .filter((n) => !n.notApplicable && n.text.length > 0)
+    .map(({ response_id, plant, text, legacy }) => ({ response_id, plant, text, legacy }));
+}
+
+/** How many respondents answered a question with “not applicable” (plant list or plant note). */
+export function notApplicableCount(questionId: string, rows: ResponseRow[]): number {
+  return rows.filter((r) => readList(r.answers[questionId]).notApplicable || readPlantNote(r.answers[questionId]).notApplicable).length;
 }
 
 export function median(values: number[]): number | null {

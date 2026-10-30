@@ -1,12 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { choiceStats, gridStats, median, normalizePlantName, plantNotes, plantTally, versionsIn } from "../src/lib/analysis.ts";
+import { choiceStats, gridStats, median, normalizePlantName, notApplicableCount, plantNotes, plantTally, versionsIn } from "../src/lib/analysis.ts";
 import { ALL_QUESTIONS, type CheckboxQuestion, type GridQuestion, type SingleQuestion } from "../src/questions.ts";
 import type { ResponseRow } from "../src/lib/answers.ts";
 import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta } from "../src/dev/filters.ts";
 
 const q = <T>(id: string) => ALL_QUESTIONS.find((x) => x.id === id)! as T;
-const row = (answers: ResponseRow["answers"], i: number, version = 4): ResponseRow => ({
+const row = (answers: ResponseRow["answers"], i: number, version = 5): ResponseRow => ({
   id: String(i),
   submitted_at: "2026-10-28T00:00:00Z",
   duration_seconds: 100 + i,
@@ -52,12 +52,18 @@ test("grid rows exclude not-applicable and missing respondents from their denomi
   assert.equal(water.cells[0].share, 0);
 });
 
-test("plant tally merges case and spacing only; notes keep their explicit plant", () => {
+test("plant tally merges case and spacing only; notes keep their explicit plant; not-applicable answers are counted apart", () => {
   assert.equal(normalizePlantName("  Sword  Fern. "), "sword fern");
   const t = plantTally("q14", rows);
   assert.equal(t[0].count, 2);
   const notes = plantNotes("q15", rows);
   assert.deepEqual(notes.map((n) => [n.plant, n.legacy]), [["Salal", false], [null, true]]);
+  const withNa = [...rows, row({ q14: { not_applicable: true, entries: ["Salal"] }, q15: { not_applicable: true } }, 9)];
+  assert.equal(plantTally("q14", withNa).find((p) => p.name === "Salal")?.count, 2, "a not-applicable list adds no mention");
+  assert.equal(plantNotes("q15", withNa).length, 2);
+  assert.equal(notApplicableCount("q14", withNa), 1);
+  assert.equal(notApplicableCount("q15", withNa), 1);
+  assert.equal(notApplicableCount("q14", rows), 0);
 });
 
 test("Q2: the old key both is reported as an earlier-version selection, never merged into personal", () => {
@@ -78,8 +84,8 @@ test("filters: default is the current version; roles may overlap; the meta descr
   const meta = filterMeta({ ...DEFAULT_FILTER, roles: new Set(["mla"]) }, 2, 4);
   assert.deepEqual(meta.roles, ["MLA student"]);
   assert.ok(meta.roles_note);
-  assert.match(describeFilter(DEFAULT_FILTER, 3, 4), /3 of 4 responses · questionnaire version 4/);
-  assert.deepEqual(versionsIn(rows), [4, 2]);
+  assert.match(describeFilter(DEFAULT_FILTER, 3, 4), /3 of 4 responses · questionnaire version 5/);
+  assert.deepEqual(versionsIn(rows), [5, 2]);
 });
 
 test("median", () => {

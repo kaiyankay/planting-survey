@@ -14,8 +14,7 @@
  * common name and a scientific name become one candidate only when a
  * reviewer merges them.
  */
-import { listEntries, readPlantNote, type ResponseRow } from "./answers.ts";
-import { normalizePlantName } from "./analysis.ts";
+import { listEntries, normalizePlantName, readPlantNote, type ResponseRow } from "./answers.ts";
 import type { Review, ReviewStatus } from "../dev/data.ts";
 
 export type Source = {
@@ -84,7 +83,7 @@ export function unassignedNotes(rows: ResponseRow[], listQuestion = "q14", noteQ
   const out: UnassignedNote[] = [];
   for (const r of rows) {
     const note = readPlantNote(r.answers[noteQuestion]);
-    if (!note.text) continue;
+    if (note.notApplicable || !note.text) continue;
     const list = listEntries(r.answers[listQuestion]);
     const matches = note.plant !== null && list.some((x) => normalizePlantName(x) === normalizePlantName(note.plant!));
     if (!matches) out.push({ response_id: r.id, submitted_at: r.submitted_at, listed: list, text: note.text });

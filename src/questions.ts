@@ -21,12 +21,17 @@
  * planting or gardening experience); q14 and q15 became required (at least
  * three plants; a chosen plant with a note); q4 and q16 lost their
  * three-selection cap; q10 reworded.
+ *
+ * Version 5 (2026-10-29): q14 may be answered "not applicable" (cannot name
+ * three plants yet), stored as { not_applicable: true, entries }, and q15
+ * then takes { not_applicable: true }. Three different plants are required
+ * otherwise, compared without case or extra spaces.
  */
 
-export const QUESTIONS_VERSION = 4;
+export const QUESTIONS_VERSION = 5;
 
 /** Versions whose answers the developer mode knows how to read. */
-export const KNOWN_VERSIONS = [1, 2, 3, 4] as const;
+export const KNOWN_VERSIONS = [1, 2, 3, 4, 5] as const;
 
 export const SURVEY_TITLE = "How you work with plants";
 
@@ -93,9 +98,11 @@ export type TextListQuestion = {
   text: string;
   help?: string;
   count: number;
-  /** Fewest non-empty entries needed for the answer to count. */
+  /** Fewest different non-empty entries needed for the answer to count. */
   min: number;
   labelPrefix: string;
+  /** Exclusive way out for respondents who cannot name enough plants. */
+  notApplicable?: string;
 };
 
 /** A note about one plant chosen from the respondent’s own list in another question. */
@@ -108,6 +115,8 @@ export type PlantNoteQuestion = {
   sourceQuestion: string;
   pickLabel: string;
   maxLength: number;
+  /** The only choice offered when the source list is not applicable. */
+  notApplicable: string;
 };
 
 export type Question = CheckboxQuestion | SingleQuestion | GridQuestion | TextListQuestion | PlantNoteQuestion;
@@ -376,6 +385,7 @@ export const SECTIONS: Section[] = [
         count: 5,
         min: 3,
         labelPrefix: "Plant",
+        notApplicable: "I don’t know enough plants to name three yet",
       },
       {
         kind: "plantnote",
@@ -385,6 +395,7 @@ export const SECTIONS: Section[] = [
         sourceQuestion: "q14",
         pickLabel: "Which plant is this about?",
         maxLength: 300,
+        notApplicable: "Not applicable, I don’t have enough plant knowledge yet",
       },
     ],
   },

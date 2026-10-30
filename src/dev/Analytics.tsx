@@ -1,6 +1,6 @@
 import { ALL_QUESTIONS, QUESTIONS_VERSION, SECTIONS, type Question } from "../questions.ts";
 import { listEntries, toCsv, type ResponseRow } from "../lib/answers.ts";
-import { choiceStats, gridStats, median, otherTexts, plantNotes } from "../lib/analysis.ts";
+import { choiceStats, gridStats, median, notApplicableCount, otherTexts, plantNotes } from "../lib/analysis.ts";
 import { download } from "./data.ts";
 import { About, Bars, Button, GridTable, Section, T, TextList, Tile, Toolbar } from "./ui.tsx";
 
@@ -105,14 +105,16 @@ function Body({ q, rows }: { q: Question; rows: ResponseRow[] }) {
     }
     case "textlist": {
       const lists = rows.map((r) => listEntries(r.answers[q.id])).filter((l) => l.length > 0);
-      return <TextList label={`${lists.length} lists, as written`} items={lists.map((l) => l.join(", "))} />;
+      const na = notApplicableCount(q.id, rows);
+      return <TextList label={`${lists.length} lists, as written${na ? ` · ${na} could not name three plants yet` : ""}`} items={lists.map((l) => l.join(", "))} />;
     }
     case "plantnote": {
       const notes = plantNotes(q.id, rows);
       const unassigned = notes.filter((n) => n.plant === null).length;
+      const na = notApplicableCount(q.id, rows);
       return (
         <TextList
-          label={`${notes.length} notes${unassigned ? ` · ${unassigned} without a plant attached (earlier version)` : ""}`}
+          label={`${notes.length} notes${unassigned ? ` · ${unassigned} without a plant attached (earlier version)` : ""}${na ? ` · ${na} not applicable` : ""}`}
           items={notes.map((n) => `${n.plant ?? "Unassigned"}: ${n.text}`)}
         />
       );
@@ -132,8 +134,8 @@ function summarise(q: Question, rows: ResponseRow[]) {
       return { id: q.id, text: q.text, answered: s.answered, not_applicable: s.notApplicable, rows: s.rows };
     }
     case "textlist":
-      return { id: q.id, text: q.text, lists: rows.map((r) => listEntries(r.answers[q.id])).filter((l) => l.length > 0) };
+      return { id: q.id, text: q.text, lists: rows.map((r) => listEntries(r.answers[q.id])).filter((l) => l.length > 0), not_applicable: notApplicableCount(q.id, rows) };
     case "plantnote":
-      return { id: q.id, text: q.text, notes: plantNotes(q.id, rows) };
+      return { id: q.id, text: q.text, notes: plantNotes(q.id, rows), not_applicable: notApplicableCount(q.id, rows) };
   }
 }

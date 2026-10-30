@@ -13,10 +13,10 @@ const row = (i: number, answers: ResponseRow["answers"]): ResponseRow => ({
 });
 
 const rows = [
-  row(1, { f1: { entries: [{ name: "Sword fern", role: "perennial_grass", why: "evergreen" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Sword fern", text: "Sword fern for dry shade.", basis: "project" } }),
-  row(2, { f1: { entries: [{ name: "Polystichum munitum", role: "perennial_grass" }, { name: "Vine maple", role: "tree" }] }, f2: { plant: "", text: "", basis: "" } }),
-  row(3, { f1: { entries: [{ name: "salal", role: "groundcover", why: "spreads" }, { name: "Sword  fern", role: "perennial_grass" }] }, f2: { plant: "salal", text: "Salal under conifers.", basis: "observed" } }),
-  row(4, { f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }),
+  row(1, { d1: { entries: [{ name: "Sword fern", role: "perennial_grass", why: "evergreen" }, { name: "Salal", role: "shrub" }] }, d2: { plant: "Sword fern", text: "Sword fern for dry shade.", basis: "project" } }),
+  row(2, { d1: { entries: [{ name: "Polystichum munitum", role: "perennial_grass" }, { name: "Vine maple", role: "tree" }] }, d2: { plant: "", text: "", basis: "" } }),
+  row(3, { d1: { entries: [{ name: "salal", role: "groundcover", why: "spreads" }, { name: "Sword  fern", role: "perennial_grass" }] }, d2: { plant: "salal", text: "Salal under conifers.", basis: "observed" } }),
+  row(4, { d1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, d2: { not_applicable: true } }),
 ];
 
 test("candidates group by name, count respondents, keep roles and reasons, attach notes only to the chosen plant", () => {

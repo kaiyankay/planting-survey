@@ -20,8 +20,8 @@ const STATUS: { key: ReviewStatus; label: string }[] = [
   { key: "excluded", label: "Excluded" },
 ];
 
-const F1 = ALL_QUESTIONS.find((q) => q.id === "f1");
-const roleLabel = (key: string) => (F1 && F1.kind === "plantlist" ? F1.roles.find((r) => r.key === key)?.label : undefined) ?? key;
+const D1 = ALL_QUESTIONS.find((q) => q.id === "d1");
+const roleLabel = (key: string) => (D1 && D1.kind === "plantlist" ? D1.roles.find((r) => r.key === key)?.label : undefined) ?? key;
 const rolesText = (roles: Record<string, number>) =>
   Object.entries(roles)
     .sort((a, b) => b[1] - a[1])
@@ -51,7 +51,7 @@ export function Candidates({ rows, reviews, canEdit, onSave, onClear, meta }: Pr
       <Toolbar
         summary={
           <>
-            Plants named in f1 with the role and reason each respondent gave, and the note attached in f2. Merge spellings, shortlist about ten for
+            Plants named in d1 with the role and reason each respondent gave, and the note attached in d2. Merge spellings, shortlist about ten for
             the prototype covering every role, and say why. {candidates.length} candidates, {shortlisted} shortlisted
             {canEdit ? "." : "; you can read but not change reviews."}
           </>

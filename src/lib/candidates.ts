@@ -1,7 +1,7 @@
 /**
  * Plant candidates for the first prototype database, built from the plants
- * respondents named (f1: name, role, reason) and the note one of them got
- * (f2), combined with the reviewers’ decisions (merges, status, notes).
+ * respondents named (d1: name, role, reason) and the note one of them got
+ * (d2), combined with the reviewers’ decisions (merges, status, notes).
  * Pure functions; no I/O.
  *
  * Two kinds of information are kept apart throughout:
@@ -109,7 +109,7 @@ export function wouldCycle(key: string, target: string, reviews: Map<string, Rev
   return true;
 }
 
-export function buildCandidates(rows: ResponseRow[], reviewList: Review[], listQuestion = "f1", noteQuestion = "f2"): Candidate[] {
+export function buildCandidates(rows: ResponseRow[], reviewList: Review[], listQuestion = "d1", noteQuestion = "d2"): Candidate[] {
   const reviews = new Map(reviewList.map((r) => [r.name_key, r]));
   const groups = collectGroups(rows, listQuestion, noteQuestion);
 

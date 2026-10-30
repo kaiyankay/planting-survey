@@ -1,7 +1,7 @@
 /**
  * All survey content lives here. Edit wording freely.
  *
- * Question ids (a1, b1, f2 …) are storage keys only: they are what the
+ * Question ids (a1, c1, d2 …) are storage keys only: they are what the
  * database and the exports use, and they never appear on the page. The number
  * a respondent sees is the question’s position among the questions shown to
  * them, generated in App.tsx. Option keys are stored too, so keep them stable
@@ -149,27 +149,64 @@ export const SECTIONS: Section[] = [
           { key: "none", label: "None yet", exclusive: true, fixed: true },
         ],
       },
+    ],
+  },
+  {
+    id: "workflow",
+    title: "How you work now",
+    requiresExperience: true,
+    questions: [
       {
         kind: "single",
-        id: "a3",
-        text: "Where has most of your planting experience been?",
+        id: "b1",
+        text: "In a typical project, when do you actually settle on plant species?",
         options: [
-          { key: "metro_vancouver", label: "Metro Vancouver" },
-          { key: "bc_pnw", label: "Elsewhere in BC or the Pacific Northwest" },
-          { key: "other_climate", label: "A different climate" },
-          { key: "none", label: "No experience yet" },
+          { key: "concept", label: "During concept design" },
+          { key: "development", label: "During design development" },
+          { key: "planting_plan", label: "When preparing the planting plan" },
+          { key: "no_clear_moment", label: "It keeps changing, no clear moment" },
+          { key: "someone_else", label: "Someone else decides (instructor, client, municipality)" },
         ],
+      },
+      {
+        kind: "checkbox",
+        id: "b2",
+        text: "Where do you look when choosing plants?",
+        help: "Choose up to 3",
+        max: 3,
+        shuffle: true,
+        options: [
+          { key: "databases", label: "Online plant databases" },
+          { key: "books", label: "Books and manuals" },
+          { key: "municipal_lists", label: "Municipal or regional plant lists" },
+          { key: "nursery_suppliers", label: "Nursery catalogues or plant suppliers" },
+          { key: "software_libraries", label: "Software plant libraries (Landmark, Land F/X…)" },
+          { key: "colleagues", label: "Colleagues or instructors" },
+          { key: "own_projects", label: "My own past projects" },
+          { key: "web_search", label: "General web search" },
+          { key: "ai_chat", label: "AI chat tools" },
+        ],
+      },
+      {
+        kind: "longtext",
+        id: "b3",
+        text: "Think of the last time you chose plants for a design or your own garden. Tell us how it went, in a few sentences.",
+        help: "Mention where you started, what you checked, anything you dropped and why, and where the final list ended up",
+        required: true,
+        maxLength: 1500,
+        example:
+          "I started from a planting plan the studio gave us as precedent, then checked each plant on Missouri Botanical Garden for size and hardiness. I dropped two because they’d get too tall for the overhead wires. The final list went into a Rhino layer and an Excel plant schedule.",
       },
     ],
   },
   {
-    id: "needs",
-    title: "What you need to know",
+    id: "knowledge",
+    title: "Plant knowledge",
     questions: [
       {
         kind: "grid3",
-        id: "b1",
-        text: "Think of the most recent project or garden you chose plants for. How did each attribute enter that decision?",
+        id: "c1",
+        text: "In the project you just described, how did each attribute enter the decision?",
         help: "Answer for that one project, not for how you work in general",
         requiresExperience: true,
         columns: [
@@ -192,7 +229,7 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "checkbox",
-        id: "b2",
+        id: "c2",
         text: "Which have you tried to find and couldn’t, or didn’t trust?",
         help: "Choose all that apply",
         shuffle: true,
@@ -208,7 +245,7 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "single",
-        id: "b3",
+        id: "c3",
         text: "When two sources disagree about a plant (say, one gives a mature height of 6 m and another 10 m), what do you usually do?",
         options: [
           { key: "trusted_source", label: "Go with the source I trust most" },
@@ -221,60 +258,12 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "shorttext",
-        id: "b4",
+        id: "c4",
         text: "Briefly, one specific thing about a plant you wanted to know and couldn’t find.",
         help: "Optional",
         required: false,
         maxLength: 300,
         lines: 2,
-      },
-    ],
-  },
-  {
-    id: "workflow",
-    title: "How you work now",
-    requiresExperience: true,
-    questions: [
-      {
-        kind: "single",
-        id: "c1",
-        text: "In a typical project, when do you actually settle on plant species?",
-        options: [
-          { key: "concept", label: "During concept design" },
-          { key: "development", label: "During design development" },
-          { key: "planting_plan", label: "When preparing the planting plan" },
-          { key: "no_clear_moment", label: "It keeps changing, no clear moment" },
-          { key: "someone_else", label: "Someone else decides (instructor, client, municipality)" },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "c2",
-        text: "Where do you look when choosing plants?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "databases", label: "Online plant databases" },
-          { key: "books", label: "Books and manuals" },
-          { key: "municipal_lists", label: "Municipal or regional plant lists" },
-          { key: "nursery_suppliers", label: "Nursery catalogues or plant suppliers" },
-          { key: "software_libraries", label: "Software plant libraries (Landmark, Land F/X…)" },
-          { key: "colleagues", label: "Colleagues or instructors" },
-          { key: "own_projects", label: "My own past projects" },
-          { key: "web_search", label: "General web search" },
-          { key: "ai_chat", label: "AI chat tools" },
-        ],
-      },
-      {
-        kind: "longtext",
-        id: "c3",
-        text: "Think of the last time you chose plants for a design or your own garden. Tell us how it went, in a few sentences.",
-        help: "Mention where you started, what you checked, anything you dropped and why, and where the final list ended up",
-        required: true,
-        maxLength: 1500,
-        example:
-          "I started from a planting plan the studio gave us as precedent, then checked each plant on Missouri Botanical Garden for size and hardiness. I dropped two because they’d get too tall for the overhead wires. The final list went into a Rhino layer and an Excel plant schedule.",
       },
     ],
   },
@@ -285,7 +274,7 @@ export const SECTIONS: Section[] = [
     questions: [
       {
         kind: "plantlist",
-        id: "f1",
+        id: "d1",
         text: "Name up to 5 plants you’d consider for Metro Vancouver, ideally three or more.",
         help: "Common or scientific names are fine",
         count: 5,
@@ -301,10 +290,10 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "plantnote",
-        id: "f2",
+        id: "d2",
         text: "Pick one plant from your list and write the note you’d leave for a colleague: where it was growing, how it performed, and anything you’d warn them about.",
         help: "First-hand use, site observation and things you’ve read are all welcome",
-        sourceQuestion: "f1",
+        sourceQuestion: "d1",
         pickLabel: "Which plant is this about?",
         maxLength: 300,
         basis: {
@@ -326,7 +315,7 @@ export const SECTIONS: Section[] = [
     questions: [
       {
         kind: "shorttext",
-        id: "d1",
+        id: "e1",
         text: "Before you know which plants you’ll use, write 3–5 words or phrases you’d use to describe the planting you want.",
         help: "Optional",
         required: false,
@@ -335,7 +324,7 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "shorttext",
-        id: "d2",
+        id: "e2",
         text: "If a plant database understood plain language, write one search you would actually type.",
         required: true,
         maxLength: 200,
@@ -349,7 +338,7 @@ export const SECTIONS: Section[] = [
     questions: [
       {
         kind: "checkbox",
-        id: "e1",
+        id: "f1",
         text: "When reading someone else’s note about a plant, which details do you need before trusting it for your own project?",
         help: "Choose all that apply",
         shuffle: true,
@@ -364,7 +353,7 @@ export const SECTIONS: Section[] = [
       },
       {
         kind: "checkbox",
-        id: "e2",
+        id: "f2",
         text: "If an AI tool suggested a plant, what would make you take it seriously?",
         help: "Choose up to 2",
         max: 2,

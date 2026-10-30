@@ -9,7 +9,7 @@ import { About, Bars, Button, Chip, Section, T, TextList, Tile, Toolbar, pct } f
 type Props = { rows: ResponseRow[]; total: number; meta: unknown };
 
 /** The questions whose answers are free text, listed verbatim under Open responses. */
-const OPEN_QUESTIONS = ["b4", "c3", "d1", "d2", "f2"];
+const OPEN_QUESTIONS = ["c4", "b3", "e1", "e2", "d2"];
 
 /** Survey analytics over the current selection: counts with their base n, the b1 matrix, open answers verbatim, raw exports. */
 export function Analytics({ rows, total, meta }: Props) {
@@ -42,7 +42,7 @@ export function Analytics({ rows, total, meta }: Props) {
         items={[
           "n is the number of respondents who answered that question; shares are fractions of n.",
           "Multiple-choice shares add to more than 100% because one person may choose several options.",
-          "Respondents with no planting experience were not asked b1, section C or section F; those questions simply have a smaller n.",
+          "Respondents with no planting experience were not asked section B, c1 or section D; those questions simply have a smaller n.",
           "An option nobody chose is shown as 0, not as unimportant.",
         ]}
       />
@@ -181,7 +181,7 @@ function OpenResponses({ rows, stamp }: { rows: ResponseRow[]; stamp: string }) 
       const hasNone = ((r.answers.a2 as { selected?: string[] } | undefined)?.selected ?? []).includes("none");
       for (const id of OPEN_QUESTIONS) {
         const text = openText(id, r);
-        const basis = id === "f2" ? basisLabel(id, (r.answers.f2 as { basis?: string } | undefined)?.basis ?? "") : "";
+        const basis = id === "d2" ? basisLabel(id, (r.answers.d2 as { basis?: string } | undefined)?.basis ?? "") : "";
         if (text) out.push({ response_id: r.id, question: id, a1: tags.a1.join(" | "), a2: tags.a2.join(" | "), text, basis, hasNone });
       }
     }

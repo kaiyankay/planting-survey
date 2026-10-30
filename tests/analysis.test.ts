@@ -15,21 +15,21 @@ const row = (answers: ResponseRow["answers"], i: number): ResponseRow => ({
 });
 
 const rows = [
-  row({ a1: { selected: ["mla"] }, a2: { selected: ["studio"] }, b1: { hardiness: "must_pass", light: "compared" }, b3: { selected: ["keep_both"] }, b2: { selected: ["mature_size", "conflicting"] }, f1: { entries: [{ name: "Sword fern", role: "perennial_grass" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Salal", text: "Dry shade.", basis: "observed" }, d2: "shrubs for shade" }, 1),
-  row({ a1: { selected: ["mla", "designer"] }, a2: { selected: ["professional", "gardening"] }, b1: { hardiness: "must_pass" }, b2: { selected: ["mature_size"] }, f1: { entries: [{ name: "sword  fern ", role: "groundcover" }, { name: "Acer circinatum", role: "tree" }] }, f2: { plant: "", text: "", basis: "" }, d2: "" }, 2),
-  row({ a1: { selected: ["instructor"] }, a2: { selected: ["none"] }, b2: { selected: ["not_looked"] }, d2: "a tree that does not drop much" }, 3),
-  row({ a1: { selected: ["designer"] }, a2: { selected: ["gardening"] }, b1: { hardiness: "not_considered" }, f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }, 4),
+  row({ a1: { selected: ["mla"] }, a2: { selected: ["studio"] }, c1: { hardiness: "must_pass", light: "compared" }, c3: { selected: ["keep_both"] }, c2: { selected: ["mature_size", "conflicting"] }, d1: { entries: [{ name: "Sword fern", role: "perennial_grass" }, { name: "Salal", role: "shrub" }] }, d2: { plant: "Salal", text: "Dry shade.", basis: "observed" }, e2: "shrubs for shade" }, 1),
+  row({ a1: { selected: ["mla", "designer"] }, a2: { selected: ["professional", "gardening"] }, c1: { hardiness: "must_pass" }, c2: { selected: ["mature_size"] }, d1: { entries: [{ name: "sword  fern ", role: "groundcover" }, { name: "Acer circinatum", role: "tree" }] }, d2: { plant: "", text: "", basis: "" }, e2: "" }, 2),
+  row({ a1: { selected: ["instructor"] }, a2: { selected: ["none"] }, c2: { selected: ["not_looked"] }, e2: "a tree that does not drop much" }, 3),
+  row({ a1: { selected: ["designer"] }, a2: { selected: ["gardening"] }, c1: { hardiness: "not_considered" }, d1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, d2: { not_applicable: true } }, 4),
 ];
 
 test("choice shares use only respondents who answered the question", () => {
-  const s = choiceStats(q<CheckboxQuestion>("b2"), rows);
+  const s = choiceStats(q<CheckboxQuestion>("c2"), rows);
   assert.equal(s.n, 3);
   assert.equal(s.counts.find((x) => x.key === "mature_size")?.count, 2);
   assert.equal(s.counts.find((x) => x.key === "mature_size")?.share, 2 / 3);
 });
 
-test("b1 rows count over the respondents who answered that row, with the must-pass share", () => {
-  const s = grid3Stats(q<Grid3Question>("b1"), rows);
+test("c1 rows count over the respondents who answered that row, with the must-pass share", () => {
+  const s = grid3Stats(q<Grid3Question>("c1"), rows);
   assert.equal(s.answered, 3, "the respondent with no experience was never asked");
   const hardiness = s.rows.find((r) => r.key === "hardiness")!;
   assert.equal(hardiness.n, 3);
@@ -43,24 +43,24 @@ test("b1 rows count over the respondents who answered that row, with the must-pa
 
 test("plant tally merges case and spacing, keeps roles, and ignores not-applicable lists", () => {
   assert.equal(normalizePlantName("  Sword  Fern. "), "sword fern");
-  const t = plantTally("f1", rows);
+  const t = plantTally("d1", rows);
   assert.equal(t[0].name, "Sword fern");
   assert.equal(t[0].count, 2);
   assert.deepEqual(t[0].roles, { perennial_grass: 1, groundcover: 1 });
   assert.equal(t.find((p) => p.name === "Salal")?.count, 1, "the not-applicable respondent’s typed Salal is not a mention");
-  assert.deepEqual(plantNotes("f2", rows), [{ response_id: "1", plant: "Salal", text: "Dry shade.", basis: "observed" }]);
-  assert.equal(basisLabel("f2", "observed"), "Observed in person");
-  assert.equal(basisLabel("f2", ""), "");
-  assert.equal(notApplicableCount("f1", rows), 1);
-  assert.equal(notApplicableCount("f2", rows), 1);
+  assert.deepEqual(plantNotes("d2", rows), [{ response_id: "1", plant: "Salal", text: "Dry shade.", basis: "observed" }]);
+  assert.equal(basisLabel("d2", "observed"), "Observed in person");
+  assert.equal(basisLabel("d2", ""), "");
+  assert.equal(notApplicableCount("d1", rows), 1);
+  assert.equal(notApplicableCount("d2", rows), 1);
 });
 
 test("open text reads short, long and note answers, blank when not given", () => {
-  assert.equal(openText("d2", rows[0]), "shrubs for shade");
-  assert.equal(openText("d2", rows[1]), "");
-  assert.equal(openText("f2", rows[0]), "Dry shade.");
-  assert.equal(openText("f2", rows[3]), "");
-  assert.equal(openText("c3", rows[2]), "");
+  assert.equal(openText("e2", rows[0]), "shrubs for shade");
+  assert.equal(openText("e2", rows[1]), "");
+  assert.equal(openText("d2", rows[0]), "Dry shade.");
+  assert.equal(openText("d2", rows[3]), "");
+  assert.equal(openText("b3", rows[2]), "");
 });
 
 test("filters by role (overlapping) and experience; group tags use labels", () => {

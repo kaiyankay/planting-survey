@@ -1,91 +1,75 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { choiceStats, gridStats, median, normalizePlantName, notApplicableCount, plantNotes, plantTally, versionsIn } from "../src/lib/analysis.ts";
-import { ALL_QUESTIONS, type CheckboxQuestion, type GridQuestion, type SingleQuestion } from "../src/questions.ts";
+import { choiceStats, grid3Stats, median, normalizePlantName, notApplicableCount, openText, plantNotes, plantTally } from "../src/lib/analysis.ts";
+import { ALL_QUESTIONS, type CheckboxQuestion, type Grid3Question } from "../src/questions.ts";
 import type { ResponseRow } from "../src/lib/answers.ts";
-import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta } from "../src/dev/filters.ts";
+import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta, groupTags } from "../src/dev/filters.ts";
 
 const q = <T>(id: string) => ALL_QUESTIONS.find((x) => x.id === id)! as T;
-const row = (answers: ResponseRow["answers"], i: number, version = 5): ResponseRow => ({
+const row = (answers: ResponseRow["answers"], i: number): ResponseRow => ({
   id: String(i),
-  submitted_at: "2026-10-28T00:00:00Z",
+  submitted_at: "2026-11-03T00:00:00Z",
   duration_seconds: 100 + i,
-  questions_version: version,
+  questions_version: 1,
   answers,
 });
 
 const rows = [
-  row({ q1: { selected: ["mla"] }, q2: { selected: ["academic"] }, q4: { selected: ["height", "zone"] }, q7: { hardiness: "rule", light: "preference" }, q14: ["Sword fern", "Salal"], q15: { plant: "Salal", text: "Dry shade." } }, 1),
-  row({ q1: { selected: ["mla", "practitioner"] }, q2: { selected: ["both"] }, q4: { selected: ["height"] }, q7: { hardiness: "rule" }, q14: ["sword  fern ", "Acer circinatum"], q15: { plant: "", text: "" } }, 2),
-  row({ q1: { selected: ["academic"] }, q2: { selected: ["none"] }, q4: { selected: ["rarely"] }, q7: { na: "yes" }, q14: ["Salal"], q15: "Old-style note." }, 3, 2),
-  row({ q1: { selected: ["practitioner"] }, q2: { selected: ["professional"] }, q14: [] }, 4),
+  row({ a1: { selected: ["mla"] }, a2: { selected: ["studio"] }, b1: { hardiness: "must_pass", light: "compared" }, b2: { selected: ["mature_size", "conflicting"] }, f1: { entries: [{ name: "Sword fern", role: "perennial_grass" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Salal", text: "Dry shade." }, d2: "shrubs for shade" }, 1),
+  row({ a1: { selected: ["mla", "designer"] }, a2: { selected: ["professional", "gardening"] }, b1: { hardiness: "must_pass" }, b2: { selected: ["mature_size"] }, f1: { entries: [{ name: "sword  fern ", role: "groundcover" }, { name: "Acer circinatum", role: "tree" }] }, f2: { plant: "", text: "" }, d2: "" }, 2),
+  row({ a1: { selected: ["instructor"] }, a2: { selected: ["none"] }, b2: { selected: ["not_looked"] }, d2: "a tree that does not drop much" }, 3),
+  row({ a1: { selected: ["designer"] }, a2: { selected: ["gardening"] }, b1: { hardiness: "rarely" }, f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }, 4),
 ];
 
 test("choice shares use only respondents who answered the question", () => {
-  const s = choiceStats(q<CheckboxQuestion>("q4"), rows);
+  const s = choiceStats(q<CheckboxQuestion>("b2"), rows);
   assert.equal(s.n, 3);
-  assert.equal(s.counts.find((x) => x.key === "height")?.count, 2);
-  assert.equal(s.counts.find((x) => x.key === "height")?.share, 2 / 3);
-  assert.equal(s.unknown, 0);
+  assert.equal(s.counts.find((x) => x.key === "mature_size")?.count, 2);
+  assert.equal(s.counts.find((x) => x.key === "mature_size")?.share, 2 / 3);
 });
 
-test("selections of options from another version are reported, not merged", () => {
-  const old = [row({ q3: { selected: ["hardiness", "photos"] } }, 9, 1), row({ q3: { selected: ["site_suitability"] } }, 10)];
-  const s = choiceStats(q<CheckboxQuestion>("q3"), old);
-  assert.equal(s.n, 2);
-  assert.equal(s.unknown, 2);
-  assert.equal(s.counts.find((x) => x.key === "site_suitability")?.count, 1);
-});
-
-test("grid rows exclude not-applicable and missing respondents from their denominators", () => {
-  const s = gridStats(q<GridQuestion>("q7"), rows);
-  assert.equal(s.answered, 3);
-  assert.equal(s.notApplicable, 1);
+test("b1 rows count over the respondents who answered that row, with the must-pass share", () => {
+  const s = grid3Stats(q<Grid3Question>("b1"), rows);
+  assert.equal(s.answered, 3, "the respondent with no experience was never asked");
   const hardiness = s.rows.find((r) => r.key === "hardiness")!;
-  assert.equal(hardiness.n, 2);
-  assert.equal(hardiness.cells.find((c) => c.col === "rule")?.share, 1);
+  assert.equal(hardiness.n, 3);
+  assert.deepEqual(hardiness.counts, { must_pass: 2, compared: 0, rarely: 1 });
+  assert.equal(hardiness.mustPassShare, 2 / 3);
   const light = s.rows.find((r) => r.key === "light")!;
   assert.equal(light.n, 1);
-  assert.equal(light.cells.find((c) => c.col === "preference")?.count, 1);
-  const water = s.rows.find((r) => r.key === "water")!;
-  assert.equal(water.n, 0);
-  assert.equal(water.cells[0].share, 0);
+  assert.equal(light.mustPassShare, 0);
+  assert.equal(s.rows.find((r) => r.key === "water")!.n, 0);
 });
 
-test("plant tally merges case and spacing only; notes keep their explicit plant; not-applicable answers are counted apart", () => {
+test("plant tally merges case and spacing, keeps roles, and ignores not-applicable lists", () => {
   assert.equal(normalizePlantName("  Sword  Fern. "), "sword fern");
-  const t = plantTally("q14", rows);
+  const t = plantTally("f1", rows);
+  assert.equal(t[0].name, "Sword fern");
   assert.equal(t[0].count, 2);
-  const notes = plantNotes("q15", rows);
-  assert.deepEqual(notes.map((n) => [n.plant, n.legacy]), [["Salal", false], [null, true]]);
-  const withNa = [...rows, row({ q14: { not_applicable: true, entries: ["Salal"] }, q15: { not_applicable: true } }, 9)];
-  assert.equal(plantTally("q14", withNa).find((p) => p.name === "Salal")?.count, 2, "a not-applicable list adds no mention");
-  assert.equal(plantNotes("q15", withNa).length, 2);
-  assert.equal(notApplicableCount("q14", withNa), 1);
-  assert.equal(notApplicableCount("q15", withNa), 1);
-  assert.equal(notApplicableCount("q14", rows), 0);
+  assert.deepEqual(t[0].roles, { perennial_grass: 1, groundcover: 1 });
+  assert.equal(t.find((p) => p.name === "Salal")?.count, 1, "the not-applicable respondent’s typed Salal is not a mention");
+  assert.deepEqual(plantNotes("f2", rows), [{ response_id: "1", plant: "Salal", text: "Dry shade." }]);
+  assert.equal(notApplicableCount("f1", rows), 1);
+  assert.equal(notApplicableCount("f2", rows), 1);
 });
 
-test("Q2: the old key both is reported as an earlier-version selection, never merged into personal", () => {
-  const s = choiceStats(q<SingleQuestion>("q2"), [...rows, row({ q2: { selected: ["personal"] } }, 5)]);
-  assert.equal(s.n, 5);
-  assert.equal(s.unknown, 1, "one respondent chose the retired option both");
-  assert.equal(s.counts.find((c) => c.key === "personal")?.count, 1);
-  assert.ok(!s.counts.some((c) => c.key === "both"));
+test("open text reads short, long and note answers, blank when not given", () => {
+  assert.equal(openText("d2", rows[0]), "shrubs for shade");
+  assert.equal(openText("d2", rows[1]), "");
+  assert.equal(openText("f2", rows[0]), "Dry shade.");
+  assert.equal(openText("f2", rows[3]), "");
+  assert.equal(openText("c3", rows[2]), "");
 });
 
-test("filters: default is the current version; roles may overlap; the meta describes the selection", () => {
-  assert.equal(applyFilter(rows, DEFAULT_FILTER).length, 3);
-  assert.equal(applyFilter(rows, { ...DEFAULT_FILTER, version: "all" }).length, 4);
-  assert.equal(applyFilter(rows, { ...DEFAULT_FILTER, version: 2 }).length, 1);
+test("filters by role (overlapping) and experience; group tags use labels", () => {
+  assert.equal(applyFilter(rows, DEFAULT_FILTER).length, 4);
   const mla = applyFilter(rows, { ...DEFAULT_FILTER, roles: new Set(["mla"]) });
-  const practitioner = applyFilter(rows, { ...DEFAULT_FILTER, roles: new Set(["practitioner"]) });
-  assert.equal(mla.length + practitioner.length, 4, "the same respondent appears in both role groups");
-  const meta = filterMeta({ ...DEFAULT_FILTER, roles: new Set(["mla"]) }, 2, 4);
-  assert.deepEqual(meta.roles, ["MLA student"]);
-  assert.ok(meta.roles_note);
-  assert.match(describeFilter(DEFAULT_FILTER, 3, 4), /3 of 4 responses · questionnaire version 5/);
-  assert.deepEqual(versionsIn(rows), [5, 2]);
+  const designer = applyFilter(rows, { ...DEFAULT_FILTER, roles: new Set(["designer"]) });
+  assert.equal(mla.length + designer.length, 4, "one respondent is in both role groups");
+  assert.equal(applyFilter(rows, { ...DEFAULT_FILTER, experience: new Set(["none"]) }).length, 1);
+  assert.deepEqual(filterMeta({ ...DEFAULT_FILTER, roles: new Set(["mla"]) }, 2, 4).roles, ["MLA student"]);
+  assert.match(describeFilter(DEFAULT_FILTER, 4, 4), /^4 of 4 responses$/);
+  assert.deepEqual(groupTags(rows[1]), { a1: ["MLA student", "Landscape designer or landscape architect"], a2: ["Professional projects", "Personal gardening"] });
 });
 
 test("median", () => {

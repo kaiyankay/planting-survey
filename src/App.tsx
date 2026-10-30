@@ -1,60 +1,43 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ALL_QUESTIONS, NO_EXPERIENCE, SECTIONS, type Question } from "./questions.ts";
-import { GRID_NA, hasAnswer, isComplete, listEntries, readList, readPlantNote, type Answer, type Answers, type ChoiceAnswer, type GridAnswer } from "./lib/answers.ts";
+import { SECTIONS, type Question } from "./questions.ts";
+import { answersToStore, hasAnswer, isComplete, isRequired, isShown, readPlantList, readPlantNote, visibleQuestions, type Answer, type Answers } from "./lib/answers.ts";
 import { submitResponse } from "./lib/submit.ts";
-import { DESKTOP_QUERY, useMediaQuery } from "./hooks/useMediaQuery.ts";
 import { QuestionBlock } from "./components/QuestionBlock.tsx";
 import { Closing, Intro, SectionHeader } from "./components/Screens.tsx";
 
-/** Every question must be answered before submitting. */
-const REQUIRED = ALL_QUESTIONS;
-
 export default function App() {
-  const desktop = useMediaQuery(DESKTOP_QUERY);
   const [answers, setAnswers] = useState<Answers>({});
   const [missing, setMissing] = useState<Set<string>>(new Set());
   const [status, setStatus] = useState<"idle" | "sending" | "error" | "done">("idle");
   const firstInteraction = useRef<number | null>(null);
   const submitted = useRef(false);
 
-  // Only a finished question counts, so the bar reaches 15 of 15 only when everything is done.
-  const answered = useMemo(() => ALL_QUESTIONS.filter((q) => hasAnswer(q, answers[q.id], answers)).length, [answers]);
-  const progress = answered / ALL_QUESTIONS.length;
-  const noExperience = (answers[NO_EXPERIENCE.question] as ChoiceAnswer | undefined)?.selected.includes(NO_EXPERIENCE.key) ?? false;
+  // Which questions this respondent sees depends on their experience answer.
+  const visible = useMemo(() => visibleQuestions(answers), [answers]);
+  const answered = useMemo(() => visible.filter((q) => hasAnswer(q, answers[q.id], answers)).length, [visible, answers]);
+  const progress = visible.length ? answered / visible.length : 0;
+  const numberOf = (q: Question) => visible.indexOf(q) + 1;
 
   const setAnswer = useCallback((q: Question, a: Answer) => {
     firstInteraction.current ??= Date.now();
     setAnswers((prev) => {
       const next = { ...prev, [q.id]: a };
-      // Leaving "no experience" removes the not-applicable choices that only it offered.
-      if (q.id === NO_EXPERIENCE.question && !(a as ChoiceAnswer).selected.includes(NO_EXPERIENCE.key)) {
-        for (const other of ALL_QUESTIONS) {
-          const v = next[other.id];
-          if (!v) continue;
-          if (other.kind === "checkbox" || other.kind === "single") {
-            const hidden = other.options.filter((o) => o.noExperienceOnly).map((o) => o.key);
-            const c = v as ChoiceAnswer;
-            if (c.selected.some((k) => hidden.includes(k))) next[other.id] = { ...c, selected: c.selected.filter((k) => !hidden.includes(k)) };
-          } else if (other.kind === "grid" && (v as GridAnswer)[GRID_NA] === "yes") {
-            delete next[other.id];
-          }
-        }
-      }
-      // Editing the plant list: a note attached to a plant that is no longer listed loses its plant, not its
-      // text; and a note marked not applicable is reset once the list has plants again.
-      if (q.kind === "textlist") {
-        const list = readList(a);
-        for (const other of ALL_QUESTIONS) {
+      // Editing the plant list: a note about a plant no longer listed loses its plant, not its text;
+      // a note marked not applicable is reset once the list has plants again.
+      if (q.kind === "plantlist") {
+        const list = readPlantList(a);
+        const names = list.notApplicable ? [] : list.entries.map((e) => e.name);
+        for (const other of visibleQuestions(next)) {
           if (other.kind !== "plantnote" || other.sourceQuestion !== q.id) continue;
           const note = readPlantNote(next[other.id]);
           if (!list.notApplicable && note.notApplicable) next[other.id] = { plant: "", text: "" };
-          else if (note.plant && !list.entries.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
+          else if (note.plant && !names.includes(note.plant)) next[other.id] = { plant: "", text: note.text };
         }
       }
       return next;
     });
     setMissing((prev) => {
-      if (!prev.has(q.id) || !isComplete(q, a)) return prev;
+      if (!prev.has(q.id)) return prev;
       const next = new Set(prev);
       next.delete(q.id);
       return next;
@@ -63,7 +46,7 @@ export default function App() {
 
   async function submit() {
     if (submitted.current) return;
-    const unanswered = REQUIRED.filter((q) => !isComplete(q, answers[q.id], answers));
+    const unanswered = visible.filter((q) => isRequired(q) && !isComplete(q, answers[q.id], answers));
     if (unanswered.length > 0) {
       setMissing(new Set(unanswered.map((q) => q.id)));
       document.getElementById(`block-${unanswered[0].id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -73,7 +56,7 @@ export default function App() {
     const started = firstInteraction.current ?? Date.now();
     const duration = Math.max(0, Math.round((Date.now() - started) / 1000));
     try {
-      await submitResponse(answers, duration);
+      await submitResponse(answersToStore(answers), duration);
       submitted.current = true;
       setStatus("done");
       window.scrollTo({ top: 0 });
@@ -85,7 +68,7 @@ export default function App() {
 
   if (status === "done") return <Closing />;
 
-  const remaining = REQUIRED.filter((q) => !isComplete(q, answers[q.id], answers)).length;
+  const remaining = visible.filter((q) => isRequired(q) && !isComplete(q, answers[q.id], answers)).length;
 
   return (
     <div className="min-h-dvh">
@@ -95,7 +78,7 @@ export default function App() {
         </div>
         <div className="mx-auto flex max-w-[42rem] items-center justify-end px-6 py-1.5 text-[13px] text-mute">
           <span className="tabular-nums" aria-live="polite">
-            {answered} of {ALL_QUESTIONS.length} answered
+            {answered} of {visible.length} answered
           </span>
         </div>
       </div>
@@ -103,37 +86,37 @@ export default function App() {
       <Intro />
 
       <main className="mx-auto max-w-[42rem] px-6 pb-24">
-        {SECTIONS.map((section, i) => (
-          <section key={section.id} aria-labelledby={`section-${section.id}`} className={i === 0 ? "pt-6" : "pt-10 md:pt-12"}>
-            <SectionHeader section={section} index={i} />
-            <div className="mt-6 space-y-9">
-              {section.questions.map((q) => (
-                <QuestionBlock
-                  key={q.id}
-                  question={q}
-                  answer={answers[q.id]}
-                  onChange={(a) => setAnswer(q, a)}
-                  showHint={missing.has(q.id)}
-                  desktop={desktop}
-                  number={ALL_QUESTIONS.indexOf(q) + 1}
-                  noExperience={noExperience}
-                  plants={q.kind === "plantnote" ? listEntries(answers[q.sourceQuestion]) : undefined}
-                  sourceNotApplicable={q.kind === "plantnote" ? readList(answers[q.sourceQuestion]).notApplicable : undefined}
-                  answers={answers}
-                />
-              ))}
-            </div>
-          </section>
-        ))}
+        {SECTIONS.map((section, i) => {
+          const shown = section.questions.filter((q) => isShown(q, answers));
+          if (shown.length === 0) return null;
+          return (
+            <section key={section.id} aria-labelledby={`section-${section.id}`} className={i === 0 ? "pt-6" : "pt-10 md:pt-12"}>
+              <SectionHeader section={section} index={i} />
+              <div className="mt-6 space-y-9">
+                {shown.map((q) => (
+                  <QuestionBlock
+                    key={q.id}
+                    question={q}
+                    answer={answers[q.id]}
+                    onChange={(a) => setAnswer(q, a)}
+                    showHint={missing.has(q.id)}
+                    number={numberOf(q)}
+                    answers={answers}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
 
         <div className="mt-12 border-t border-line pt-6">
           <p className="text-[13px] text-mute">
-            {answered} of {ALL_QUESTIONS.length} answered.{" "}
+            {answered} of {visible.length} answered.{" "}
             {missing.size > 0
               ? `${missing.size} question${missing.size === 1 ? "" : "s"} above still need${missing.size === 1 ? "s" : ""} an answer.`
               : remaining > 0
                 ? `${remaining} still need${remaining === 1 ? "s" : ""} an answer before you can submit.`
-                : "Everything is answered."}
+                : "Everything needed is answered."}
           </p>
           {status === "error" && (
             <p role="alert" className="mt-2 text-[13px] text-hint">

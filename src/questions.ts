@@ -1,43 +1,26 @@
 /**
- * All survey content lives here. Edit wording freely; the `key` fields are what
- * get stored and exported, so keep those stable once responses exist.
+ * All survey content lives here. Edit wording freely.
  *
- * Question ids (q1, q11, q16 …) are storage keys, not display numbers. The
- * number a respondent sees is the question's position in SECTIONS.
+ * Question ids (a1, b1, f2 …) are storage keys only: they are what the
+ * database and the exports use, and they never appear on the page. The number
+ * a respondent sees is the question’s position among the questions shown to
+ * them, generated in App.tsx. Option keys are stored too, so keep them stable
+ * once responses exist.
  *
- * Bump QUESTIONS_VERSION whenever you change wording or options in a way that
- * affects how answers should be read. Every response records the version it
- * was answered under.
- *
- * Version 2 (2026-10-29): questions reordered; q3 options replaced; q11's
- * "AI tools or web search" split into two options; q12 (stage order) and q13
- * (decide first) removed; q16 and q17 added; q4 and q7 gain a not-applicable
- * choice shown only to respondents with no experience.
- *
- * Version 3 (2026-10-29): q15 asks the respondent to pick which of their q14
- * plants the note is about; stored as { plant, text } instead of a string.
- *
- * Version 4 (2026-10-29): q2 option "both" replaced by "personal" (personal
- * planting or gardening experience); q14 and q15 became required (at least
- * three plants; a chosen plant with a note); q4 and q16 lost their
- * three-selection cap; q10 reworded.
- *
- * Version 5 (2026-10-29): q14 may be answered "not applicable" (cannot name
- * three plants yet), stored as { not_applicable: true, entries }, and q15
- * then takes { not_applicable: true }. Three different plants are required
- * otherwise, compared without case or extra spaces.
+ * The full specification, with the reasoning behind every question, is in
+ * docs/survey-spec.md.
  */
 
-export const QUESTIONS_VERSION = 5;
+export const QUESTIONS_VERSION = 1;
 
 /** Versions whose answers the developer mode knows how to read. */
-export const KNOWN_VERSIONS = [1, 2, 3, 4, 5] as const;
+export const KNOWN_VERSIONS = [1] as const;
 
 export const SURVEY_TITLE = "How you work with plants";
 
 export const INTRO = {
-  lead: "We’re exploring whether AI could support planting design. Before building anything, we want to understand how designers work with plants today.",
-  note: "About 3 minutes, anonymous.",
+  lead: "We’re building a plant knowledge database for Metro Vancouver and want to understand how people actually choose plants today.",
+  note: "About 7 minutes, anonymous. Studio projects and your own garden both count as experience.",
 };
 
 export const CLOSING = {
@@ -45,8 +28,8 @@ export const CLOSING = {
   body: "Your answers have been saved.",
 };
 
-/** Q2 answer that means the respondent has no planting design experience yet. */
-export const NO_EXPERIENCE = { question: "q2", key: "none" };
+/** The experience question and the option that means none: it decides which questions are shown. */
+export const EXPERIENCE = { question: "a2", none: "none" };
 
 export type Option = {
   key: string;
@@ -57,61 +40,66 @@ export type Option = {
   other?: boolean;
   /** Stays at the end in the given order when the question is shuffled. */
   fixed?: boolean;
-  /** Shown only to respondents with no planting design experience (see NO_EXPERIENCE). */
-  noExperienceOnly?: boolean;
 };
 
-export type CheckboxQuestion = {
-  kind: "checkbox";
+type Base = {
   id: string;
   text: string;
   help?: string;
+  /** Hidden, and not asked, when the respondent has no planting experience. */
+  requiresExperience?: boolean;
+};
+
+export type CheckboxQuestion = Base & {
+  kind: "checkbox";
   options: Option[];
   /** Maximum number of selections; omit for “choose all that apply”. */
   max?: number;
   shuffle?: boolean;
 };
 
-export type SingleQuestion = {
+export type SingleQuestion = Base & {
   kind: "single";
-  id: string;
-  text: string;
-  help?: string;
   options: Option[];
   shuffle?: boolean;
 };
 
-export type GridQuestion = {
-  kind: "grid";
-  id: string;
-  text: string;
-  help?: string;
-  columns: { key: string; label: string }[];
+/** A matrix with three fixed columns; every row must be answered. */
+export type Grid3Question = Base & {
+  kind: "grid3";
+  columns: { key: "must_pass" | "compared" | "rarely"; label: string; note: string }[];
   rows: { key: string; label: string }[];
-  /** Respondents with no experience may mark the whole grid as not applicable. */
-  notApplicable?: string;
 };
 
-export type TextListQuestion = {
-  kind: "textlist";
-  id: string;
-  text: string;
-  help?: string;
+export type ShortTextQuestion = Base & {
+  kind: "shorttext";
+  required: boolean;
+  maxLength: number;
+  /** Visual height, one or two lines. */
+  lines?: 1 | 2;
+};
+
+export type LongTextQuestion = Base & {
+  kind: "longtext";
+  required: boolean;
+  maxLength: number;
+  /** Shown in grey above the box, folded by default. */
+  example: string;
+};
+
+export type PlantListQuestion = Base & {
+  kind: "plantlist";
   count: number;
-  /** Fewest different non-empty entries needed for the answer to count. */
+  /** Fewest different plant names needed, each with a role. */
   min: number;
-  labelPrefix: string;
-  /** Exclusive way out for respondents who cannot name enough plants. */
-  notApplicable?: string;
+  roles: { key: string; label: string }[];
+  /** Exclusive way out for respondents who have not chosen plants here yet. */
+  notApplicable: string;
 };
 
-/** A note about one plant chosen from the respondent’s own list in another question. */
-export type PlantNoteQuestion = {
+export type PlantNoteQuestion = Base & {
   kind: "plantnote";
-  id: string;
-  text: string;
-  help?: string;
-  /** The textlist question whose non-empty entries become the choices. */
+  /** The plantlist question whose entries become the choices. */
   sourceQuestion: string;
   pickLabel: string;
   maxLength: number;
@@ -119,13 +107,13 @@ export type PlantNoteQuestion = {
   notApplicable: string;
 };
 
-export type Question = CheckboxQuestion | SingleQuestion | GridQuestion | TextListQuestion | PlantNoteQuestion;
+export type Question = CheckboxQuestion | SingleQuestion | Grid3Question | ShortTextQuestion | LongTextQuestion | PlantListQuestion | PlantNoteQuestion;
 
 export type Section = {
   id: string;
   title: string;
-  /** Short line shown above the first question of the section. */
-  help?: string;
+  /** The whole section is hidden when the respondent has no planting experience. */
+  requiresExperience?: boolean;
   questions: Question[];
 };
 
@@ -136,266 +124,219 @@ export const SECTIONS: Section[] = [
     questions: [
       {
         kind: "checkbox",
-        id: "q1",
-        text: "Which of the following describe you?",
+        id: "a1",
+        text: "Which describe you?",
         help: "Choose all that apply",
         options: [
           { key: "mla", label: "MLA student" },
-          { key: "other_student", label: "Student in another discipline" },
-          { key: "practitioner", label: "Practicing landscape designer / landscape architect" },
-          { key: "academic", label: "Professor, instructor or researcher" },
+          { key: "related_student", label: "Student in a related field (architecture, planning, horticulture, forestry…)" },
+          { key: "designer", label: "Landscape designer or landscape architect" },
+          { key: "instructor", label: "Instructor or researcher" },
           { key: "other", label: "Other", other: true, fixed: true },
         ],
       },
       {
-        kind: "single",
-        id: "q2",
-        text: "What planting design experience do you have?",
+        kind: "checkbox",
+        id: "a2",
+        text: "Your planting experience",
+        help: "Choose all that apply",
         options: [
-          { key: "none", label: "None yet" },
-          { key: "academic", label: "Academic or studio projects only" },
-          { key: "professional", label: "Professional projects only" },
-          { key: "personal", label: "Personal planting or gardening experience" },
+          { key: "studio", label: "Studio or academic projects" },
+          { key: "professional", label: "Professional projects" },
+          { key: "gardening", label: "Personal gardening" },
+          { key: "none", label: "None yet", exclusive: true, fixed: true },
         ],
       },
     ],
   },
   {
-    id: "attributes",
-    title: "Plant knowledge and attributes",
+    id: "needs",
+    title: "What you need to know",
     questions: [
       {
-        kind: "checkbox",
-        id: "q11",
-        text: "Which sources do you rely on most for plant information?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "databases", label: "Online plant databases (e.g. Missouri Botanical Garden, RHS, E-Flora BC)" },
-          { key: "books", label: "Books and reference manuals" },
-          { key: "catalogues", label: "Nursery catalogues" },
-          { key: "municipal_lists", label: "Municipal or regional plant lists" },
-          { key: "precedents", label: "Precedent projects and site visits" },
-          { key: "people", label: "Colleagues, instructors or mentors" },
-          { key: "own_notes", label: "My own notes and past projects" },
-          { key: "web_search", label: "General web search" },
-          { key: "ai_tools", label: "AI tools" },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q3",
-        text: "What do you most want to know about a plant?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "site_suitability", label: "Site suitability: climate, light, water and soil" },
-          { key: "growth_size", label: "Growth and size over time" },
-          { key: "appearance", label: "Visual appearance and seasonal character" },
-          { key: "maintenance_performance", label: "Maintenance, common problems and long-term performance" },
-          { key: "ecology_native", label: "Ecological value and native status" },
-          { key: "combinations", label: "Plant combinations and alternatives" },
-          { key: "availability_specs", label: "Nursery availability, cost and planting specifications" },
-          { key: "real_projects", label: "Real projects, local observations and examples of use" },
-          { key: "other", label: "Other", other: true, fixed: true },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q4",
-        text: "Which measurements do you use when designing a planting?",
-        help: "Choose all that apply",
-        options: [
-          { key: "height", label: "Mature height" },
-          { key: "spread", label: "Mature spread" },
-          { key: "spacing", label: "Spacing or planting density" },
-          { key: "growth_rate", label: "Growth rate" },
-          { key: "years_to_effect", label: "Years until it reaches the intended effect" },
-          { key: "zone", label: "Hardiness zone" },
-          { key: "purchase_size", label: "Size at purchase (pot size, caliper)" },
-          { key: "rarely", label: "I rarely use measurements", exclusive: true, fixed: true },
-          { key: "not_yet", label: "Not applicable, I haven’t designed a planting yet", exclusive: true, fixed: true, noExperienceOnly: true },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q5",
-        text: "When choosing plants for their appearance, which characteristics matter most?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "texture", label: "Texture, fine or coarse" },
-          { key: "form", label: "Form and habit" },
-          { key: "foliage", label: "Foliage colour" },
-          { key: "flower", label: "Flower colour and timing" },
-          { key: "autumn_winter", label: "Autumn and winter interest" },
-          { key: "character", label: "Overall character, such as wild, formal or lush" },
-          { key: "mass", label: "How it reads in a mass or from a distance" },
-        ],
-      },
-      {
-        kind: "grid",
-        id: "q7",
-        text: "When selecting plants, how do you usually treat the following considerations?",
+        kind: "grid3",
+        id: "b1",
+        text: "When you shortlist a plant, how does each attribute enter your decision?",
+        requiresExperience: true,
         columns: [
-          { key: "rule", label: "Fixed requirement" },
-          { key: "preference", label: "Preference" },
-          { key: "depends", label: "Depends on the project" },
-          { key: "not", label: "Not considered / Not sure" },
+          { key: "must_pass", label: "Must pass", note: "I exclude plants that fail" },
+          { key: "compared", label: "Compared later", note: "Matters when choosing between candidates" },
+          { key: "rarely", label: "Rarely look at it", note: "" },
         ],
         rows: [
-          { key: "hardiness", label: "Winter hardiness" },
-          { key: "light", label: "Light requirements" },
-          { key: "water", label: "Water requirements" },
-          { key: "size", label: "Mature size" },
-          { key: "native", label: "Native to the region" },
-          { key: "availability", label: "Local nursery availability" },
+          { key: "hardiness", label: "Hardiness" },
+          { key: "light", label: "Light" },
+          { key: "water", label: "Water and drainage" },
+          { key: "height", label: "Mature height" },
+          { key: "spread", label: "Mature spread" },
+          { key: "time_to_size", label: "Time to reach the intended size" },
+          { key: "seasonal", label: "Seasonal appearance" },
+          { key: "maintenance", label: "Maintenance needs" },
+          { key: "ecological", label: "Native or ecological value" },
+          { key: "invasive", label: "Invasive or problematic status" },
         ],
-        notApplicable: "Not applicable, I haven’t selected plants for a design yet",
+      },
+      {
+        kind: "checkbox",
+        id: "b2",
+        text: "Which have you tried to find and couldn’t, or didn’t trust?",
+        help: "Choose all that apply",
+        shuffle: true,
+        options: [
+          { key: "mature_size", label: "Real mature size under local conditions" },
+          { key: "long_term", label: "Long-term performance and maintenance" },
+          { key: "ages_seasons", label: "How it looks at different ages and seasons" },
+          { key: "with_others", label: "How it behaves alongside other plants" },
+          { key: "availability_cost", label: "Local availability and cost" },
+          { key: "conflicting", label: "Conflicting information between sources" },
+          { key: "not_looked", label: "I haven’t looked for plant information yet", exclusive: true, fixed: true },
+        ],
+      },
+      {
+        kind: "shorttext",
+        id: "b3",
+        text: "Briefly, one specific thing about a plant you wanted to know and couldn’t find.",
+        help: "Optional",
+        required: false,
+        maxLength: 300,
+        lines: 2,
       },
     ],
   },
   {
-    id: "gaps",
-    title: "Knowledge gaps and personal experience",
+    id: "workflow",
+    title: "How you work now",
+    requiresExperience: true,
+    questions: [
+      {
+        kind: "single",
+        id: "c1",
+        text: "In a typical project, when do you actually settle on plant species?",
+        options: [
+          { key: "concept", label: "During concept design" },
+          { key: "development", label: "During design development" },
+          { key: "planting_plan", label: "When preparing the planting plan" },
+          { key: "no_clear_moment", label: "It keeps changing, no clear moment" },
+        ],
+      },
+      {
+        kind: "checkbox",
+        id: "c2",
+        text: "Where do you look when choosing plants?",
+        help: "Choose up to 3",
+        max: 3,
+        shuffle: true,
+        options: [
+          { key: "databases", label: "Online plant databases" },
+          { key: "books", label: "Books and manuals" },
+          { key: "municipal_lists", label: "Municipal or regional plant lists" },
+          { key: "software_libraries", label: "Software plant libraries (Landmark, Land F/X…)" },
+          { key: "colleagues", label: "Colleagues or instructors" },
+          { key: "own_projects", label: "My own past projects" },
+          { key: "web_search", label: "General web search" },
+          { key: "ai_chat", label: "AI chat tools" },
+        ],
+      },
+      {
+        kind: "longtext",
+        id: "c3",
+        text: "Think of the last time you chose plants for a design or your own garden. Tell us how it went, in a few sentences.",
+        help: "Mention where you started, what you checked, anything you dropped and why, and where the final list ended up",
+        required: true,
+        maxLength: 1500,
+        example:
+          "I started from a planting plan the studio gave us as precedent, then checked each plant on Missouri Botanical Garden for size and hardiness. I dropped two because they’d get too tall for the overhead wires. The final list went into a Rhino layer and an Excel schedule, which I still have but haven’t opened since.",
+      },
+    ],
+  },
+  {
+    id: "asking",
+    title: "How you’d ask",
+    questions: [
+      {
+        kind: "shorttext",
+        id: "d1",
+        text: "Before you know which plants you’ll use, write 3–5 words or phrases you’d use to describe the planting you want.",
+        help: "Optional",
+        required: false,
+        maxLength: 200,
+        lines: 2,
+      },
+      {
+        kind: "shorttext",
+        id: "d2",
+        text: "If a plant database understood plain language, write one search you would actually type.",
+        required: true,
+        maxLength: 200,
+        lines: 2,
+      },
+    ],
+  },
+  {
+    id: "trust",
+    title: "Trusting knowledge from others",
     questions: [
       {
         kind: "checkbox",
-        id: "q8",
-        text: "Which types of plant information have you found most difficult to obtain or verify?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "local_growth", label: "Actual growth and mature size under local conditions" },
-          { key: "long_term", label: "Long-term performance and maintenance experience" },
-          { key: "photos", label: "Photographs across seasons and growth stages" },
-          { key: "together", label: "How plants perform together" },
-          { key: "availability_cost", label: "Reliable local availability and cost" },
-          { key: "site_problems", label: "Site-specific problems, limitations or failures" },
-          { key: "other", label: "Other", other: true, fixed: true },
-          { key: "not_searched", label: "I haven’t searched for this information yet", exclusive: true, fixed: true },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q9",
-        text: "How do you currently keep or retrieve what you’ve learned about plants?",
-        help: "Choose all that apply",
-        options: [
-          { key: "own_list", label: "My own plant list or spreadsheet" },
-          { key: "project_files", label: "Past project or studio files, including plant schedules" },
-          { key: "images", label: "Saved images or precedent boards" },
-          { key: "notes", label: "Personal notes" },
-          { key: "memory", label: "I remember it" },
-          { key: "ask", label: "I ask a colleague or classmate" },
-          { key: "lost", label: "I usually can’t find it again" },
-          { key: "not_yet", label: "I haven’t had this situation yet", exclusive: true, fixed: true },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q10",
-        text: "If recording your own plant knowledge were easy, which types of information would you most want to save?",
-        help: "Choose up to 3",
-        max: 3,
-        options: [
-          { key: "performance", label: "How it performed in a specific project" },
-          { key: "maintenance", label: "What maintenance it really needed" },
-          { key: "combinations", label: "Combinations that worked" },
-          { key: "where_to_buy", label: "Where to buy it and at what size" },
-          { key: "warning", label: "A warning or caveat" },
-          { key: "rating", label: "My own rating or tags" },
-          { key: "photos", label: "Photos I took" },
-          { key: "nothing", label: "Nothing, the standard information is enough", exclusive: true, fixed: true },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q16",
-        text: "If a database includes someone’s observation or experience with a plant, which contextual details would help you judge whether it applies to your project?",
+        id: "e1",
+        text: "When reading someone else’s note about a plant, which details do you need before trusting it for your own project?",
         help: "Choose all that apply",
         shuffle: true,
         options: [
-          { key: "location", label: "Location or region" },
-          { key: "site_conditions", label: "Site conditions (light, soil, water, etc.)" },
+          { key: "location", label: "Location" },
+          { key: "site_conditions", label: "Site conditions" },
           { key: "plant_age", label: "Plant age or years since planting" },
-          { key: "date_season", label: "Date or season of observation" },
-          { key: "maintenance", label: "Maintenance practices" },
-          { key: "source", label: "Observer or information source" },
-          { key: "other", label: "Other", other: true, fixed: true },
+          { key: "season", label: "Season observed" },
+          { key: "maintenance", label: "Maintenance it received" },
+          { key: "author", label: "Who wrote it and their experience" },
         ],
       },
-    ],
-  },
-  {
-    id: "using",
-    title: "Using plant knowledge",
-    questions: [
       {
         kind: "checkbox",
-        id: "q6",
-        text: "How do you usually describe the planting you have in mind?",
-        help: "Choose up to 2",
+        id: "e2",
+        text: "If an AI tool suggested a plant, what would make you take it seriously?",
+        help: "Choose 2",
         max: 2,
         shuffle: true,
         options: [
-          { key: "mood", label: "Mood or atmosphere words" },
-          { key: "colour", label: "A colour theme" },
-          { key: "references", label: "Reference projects or images" },
-          { key: "names", label: "Specific plant names" },
-          { key: "ecological", label: "Ecological functions (habitat, stormwater, pollinators)" },
-          { key: "spatial", label: "Spatial terms (screen, canopy, groundcover, edge)" },
-          { key: "site", label: "Site conditions" },
-        ],
-      },
-      {
-        kind: "checkbox",
-        id: "q17",
-        text: "If you were using a plant knowledge database, which ways of finding information would be most useful for your design work?",
-        help: "Choose up to 3",
-        max: 3,
-        shuffle: true,
-        options: [
-          { key: "by_name", label: "Search by plant name" },
-          { key: "by_site", label: "Filter plants by site conditions" },
-          { key: "by_visual", label: "Search by visual characteristics or design atmosphere" },
-          { key: "by_ecology", label: "Search by ecological function" },
-          { key: "compare", label: "Compare plant attributes and differences" },
-          { key: "alternatives", label: "Find similar or alternative plants" },
-          { key: "projects", label: "Explore real projects where plants have been used" },
-          { key: "own_records", label: "Search my own past plant records and observations" },
-          { key: "other", label: "Other", other: true, fixed: true },
+          { key: "sources", label: "It shows its sources" },
+          { key: "local_project", label: "It shows a local project using the plant" },
+          { key: "first_hand", label: "It shows someone’s first-hand experience" },
+          { key: "reasoning", label: "It explains its reasoning" },
+          { key: "nothing", label: "Nothing, I’d verify it myself anyway", exclusive: true, fixed: true },
         ],
       },
     ],
   },
   {
-    id: "vancouver",
-    title: "Plants in Metro Vancouver",
+    id: "plants",
+    title: "Your plants",
+    requiresExperience: true,
     questions: [
       {
-        kind: "textlist",
-        id: "q14",
-        text: "Which 3–5 plants do you personally prefer to use or consider for planting design in Metro Vancouver?",
-        help: "Common or scientific names are fine. You do not need to consider a specific site",
+        kind: "plantlist",
+        id: "f1",
+        text: "Name 3–5 plants you’d consider for Metro Vancouver.",
+        help: "Common or scientific names are fine",
         count: 5,
         min: 3,
-        labelPrefix: "Plant",
-        notApplicable: "I don’t know enough plants to name three yet",
+        roles: [
+          { key: "tree", label: "Tree" },
+          { key: "shrub", label: "Shrub" },
+          { key: "perennial_grass", label: "Perennial or grass" },
+          { key: "groundcover", label: "Groundcover" },
+          { key: "not_sure", label: "Not sure" },
+        ],
+        notApplicable: "I haven’t selected plants for a design in this region yet",
       },
       {
         kind: "plantnote",
-        id: "q15",
-        text: "Pick one plant from your list. Why do you prefer it, and under what site conditions would you use it?",
-        help: "You may also mention other plants you would combine it with",
-        sourceQuestion: "q14",
+        id: "f2",
+        text: "Pick one plant from your list and write the note you’d leave for a colleague: where you used or saw it, how it performed, and anything you’d warn them about.",
+        sourceQuestion: "f1",
         pickLabel: "Which plant is this about?",
         maxLength: 300,
-        notApplicable: "Not applicable, I don’t have enough plant knowledge yet",
+        notApplicable: "Not applicable, I haven’t selected plants for a design in this region yet",
       },
     ],
   },

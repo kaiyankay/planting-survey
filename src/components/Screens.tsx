@@ -16,11 +16,6 @@ export function SectionHeader({ section, index }: { section: Section; index: num
       <h2 id={`section-${section.id}`} className={index === 0 ? "sr-only" : "text-[13px] text-mute"}>
         {section.title}
       </h2>
-      {section.help && (
-        <p className="mt-2 max-w-[34rem] text-[14px] leading-relaxed text-ink">
-          <span className="help">{section.help}</span>
-        </p>
-      )}
     </div>
   );
 }

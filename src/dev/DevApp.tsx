@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase.ts";
 import type { ResponseRow } from "../lib/answers.ts";
-import { ALL_QUESTIONS, QUESTIONS_VERSION, SURVEY_TITLE } from "../questions.ts";
-import { versionsIn } from "../lib/analysis.ts";
-import { memoryStore, supabaseStore, type Decision, type DevStore, type Review, type Role } from "./data.ts";
+import { ALL_QUESTIONS, SURVEY_TITLE } from "../questions.ts";
+import { memoryStore, supabaseStore, type DevStore, type Review, type Role } from "./data.ts";
 import { applyFilter, DEFAULT_FILTER, describeFilter, filterMeta, type Filter } from "./filters.ts";
 import { Analytics } from "./Analytics.tsx";
-import { Insights } from "./Insights.tsx";
 import { Candidates } from "./Candidates.tsx";
 import { Share } from "./Share.tsx";
 import { Chip, LinkButton, T } from "./ui.tsx";
@@ -139,7 +137,7 @@ function SignIn() {
 /** Loads the role, then the data; shows why when either is refused. */
 function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut: () => void }) {
   const [role, setRole] = useState<Role | null | undefined>(undefined);
-  const [data, setData] = useState<{ rows: ResponseRow[]; reviews: Review[]; decisions: Decision[] } | null>(null);
+  const [data, setData] = useState<{ rows: ResponseRow[]; reviews: Review[] } | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -150,8 +148,8 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
         if (cancelled) return;
         setRole(r);
         if (!r) return;
-        const [rows, reviews, decisions] = await Promise.all([store.responses(), store.reviews(), store.decisions()]);
-        if (!cancelled) setData({ rows, reviews, decisions });
+        const [rows, reviews] = await Promise.all([store.responses(), store.reviews()]);
+        if (!cancelled) setData({ rows, reviews });
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -202,18 +200,17 @@ function Gate({ store, me, onSignOut }: { store: DevStore; me: string; onSignOut
       </Frame>
     );
   }
-  return <Workbench store={store} me={me} role={role} rows={data.rows} initialReviews={data.reviews} initialDecisions={data.decisions} onSignOut={onSignOut} />;
+  return <Workbench store={store} me={me} role={role} rows={data.rows} initialReviews={data.reviews} onSignOut={onSignOut} />;
 }
 
-type Tab = "analytics" | "insights" | "candidates";
+type Tab = "analytics" | "candidates";
 const TABS: { key: Tab; label: string }[] = [
   { key: "analytics", label: "Survey analytics" },
-  { key: "insights", label: "Database insights" },
   { key: "candidates", label: "Plant candidates" },
 ];
 
-const Q1 = ALL_QUESTIONS.find((q) => q.id === "q1")!;
-const Q2 = ALL_QUESTIONS.find((q) => q.id === "q2")!;
+const A1 = ALL_QUESTIONS.find((q) => q.id === "a1")!;
+const A2 = ALL_QUESTIONS.find((q) => q.id === "a2")!;
 
 function Workbench({
   store,
@@ -221,7 +218,6 @@ function Workbench({
   role,
   rows,
   initialReviews,
-  initialDecisions,
   onSignOut,
 }: {
   store: DevStore;
@@ -229,14 +225,12 @@ function Workbench({
   role: Role;
   rows: ResponseRow[];
   initialReviews: Review[];
-  initialDecisions: Decision[];
   onSignOut: () => void;
 }) {
   const tabFromHash = () => (TABS.some((t) => t.key === location.hash.split("/")[2]) ? (location.hash.split("/")[2] as Tab) : "analytics");
   const [tab, setTab] = useState<Tab>(tabFromHash);
   const [filter, setFilter] = useState<Filter>(DEFAULT_FILTER);
   const [reviews, setReviews] = useState(initialReviews);
-  const [decisions, setDecisions] = useState(initialDecisions);
   const [share, setShare] = useState(false);
   const canEdit = role === "owner" || role === "editor";
 
@@ -247,7 +241,6 @@ function Workbench({
   }, []);
 
   const filtered = useMemo(() => applyFilter(rows, filter), [rows, filter]);
-  const versions = useMemo(() => versionsIn(rows), [rows]);
   const scope = describeFilter(filter, filtered.length, rows.length);
   const meta = filterMeta(filter, filtered.length, rows.length);
 
@@ -271,10 +264,6 @@ function Workbench({
   async function clearReview(key: string) {
     await store.clearReview(key);
     setReviews(await store.reviews());
-  }
-  async function saveDecision(d: Decision) {
-    await store.saveDecision(d);
-    setDecisions(await store.decisions());
   }
 
   const [editing, setEditing] = useState(false);
@@ -335,21 +324,9 @@ function Workbench({
           {editing && (
             <div className="mt-3 space-y-2.5">
               <div className="flex flex-wrap items-center gap-2">
-                <span className={`${T.meta} w-20`}>Version</span>
-                {[QUESTIONS_VERSION, ...versions.filter((v) => v !== QUESTIONS_VERSION)].map((v) => (
-                  <Chip key={v} on={filter.version === v} onClick={() => setFilter({ ...filter, version: v })}>
-                    {v === QUESTIONS_VERSION ? `${v} (current)` : String(v)}
-                  </Chip>
-                ))}
-                <Chip on={filter.version === "all"} onClick={() => setFilter({ ...filter, version: "all" })}>
-                  All
-                </Chip>
-                {filter.version === "all" && <span className={T.meta}>Options differ between versions; answers to options that no longer exist are reported, not merged.</span>}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
                 <span className={`${T.meta} w-20`}>Who</span>
-                {Q1.kind === "checkbox" &&
-                  Q1.options.map((o) => (
+                {A1.kind === "checkbox" &&
+                  A1.options.map((o) => (
                     <Chip key={o.key} on={filter.roles.has(o.key)} onClick={() => toggle("roles", o.key)}>
                       {o.label}
                     </Chip>
@@ -358,8 +335,8 @@ function Workbench({
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className={`${T.meta} w-20`}>Experience</span>
-                {Q2.kind === "single" &&
-                  Q2.options.map((o) => (
+                {A2.kind === "checkbox" &&
+                  A2.options.map((o) => (
                     <Chip key={o.key} on={filter.experience.has(o.key)} onClick={() => toggle("experience", o.key)}>
                       {o.label}
                     </Chip>
@@ -372,7 +349,6 @@ function Workbench({
 
       <main className="mx-auto max-w-[46rem] px-6 pb-24 pt-8">
         {tab === "analytics" && <Analytics rows={filtered} total={rows.length} meta={meta} />}
-        {tab === "insights" && <Insights rows={filtered} decisions={decisions} canEdit={canEdit} onDecide={saveDecision} meta={meta} />}
         {tab === "candidates" && (
           <Candidates rows={filtered} reviews={reviews} canEdit={canEdit} onSave={saveReview} onClear={clearReview} meta={meta} />
         )}
@@ -402,7 +378,6 @@ function SampleWorkbench() {
         role="owner"
         rows={state.rows}
         initialReviews={[]}
-        initialDecisions={[]}
         onSignOut={() => (location.hash = "#/")}
       />
     </>

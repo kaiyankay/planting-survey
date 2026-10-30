@@ -1,6 +1,5 @@
 /**
- * Developer-mode data access: who may do what, the plant-candidate reviews
- * and the database-requirement decisions. Backed by Supabase (RLS decides,
+ * Developer-mode data access: who may do what, and the plant-candidate reviews. Backed by Supabase (RLS decides,
  * see supabase.sql) or, in local development without a database, by memory
  * so the workbench can be checked on sample data.
  */
@@ -17,14 +16,6 @@ export type Review = {
   merged_into: string | null;
   notes: string | null;
 };
-export type DecisionStatus = "proposed" | "include" | "defer" | "exclude";
-export type Decision = {
-  requirement_id: string;
-  status: DecisionStatus;
-  rationale: string | null;
-  updated_by?: string | null;
-  updated_at?: string;
-};
 
 export interface DevStore {
   /** The signed-in account’s role, or null when it is not a member. */
@@ -37,8 +28,6 @@ export interface DevStore {
   reviews(): Promise<Review[]>;
   saveReview(review: Review): Promise<void>;
   clearReview(nameKey: string): Promise<void>;
-  decisions(): Promise<Decision[]>;
-  saveDecision(decision: Decision): Promise<void>;
 }
 
 function fail(error: { message: string } | null) {
@@ -96,17 +85,6 @@ export function supabaseStore(email: string): DevStore {
       const { error } = await db.from("plant_reviews").delete().eq("name_key", nameKey);
       fail(error);
     },
-    async decisions() {
-      const { data, error } = await db.from("requirement_reviews").select("*");
-      fail(error);
-      return (data ?? []) as Decision[];
-    },
-    async saveDecision(decision) {
-      const { error } = await db
-        .from("requirement_reviews")
-        .upsert({ requirement_id: decision.requirement_id, status: decision.status, rationale: decision.rationale, updated_by: me, updated_at: new Date().toISOString() });
-      fail(error);
-    },
   };
 }
 
@@ -114,7 +92,6 @@ export function supabaseStore(email: string): DevStore {
 export function memoryStore(rows: ResponseRow[]): DevStore {
   const members: Member[] = [{ email: "kayyan1998@gmail.com", role: "owner" }];
   const reviews = new Map<string, Review>();
-  const decisions = new Map<string, Decision>();
   return {
     async role() {
       return "owner";
@@ -146,12 +123,6 @@ export function memoryStore(rows: ResponseRow[]): DevStore {
     },
     async clearReview(nameKey) {
       reviews.delete(nameKey);
-    },
-    async decisions() {
-      return [...decisions.values()];
-    },
-    async saveDecision(decision) {
-      decisions.set(decision.requirement_id, { ...decision, updated_by: members[0].email, updated_at: new Date().toISOString() });
     },
   };
 }

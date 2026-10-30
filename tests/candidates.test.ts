@@ -1,48 +1,40 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCandidates, candidatesExport, resolveTarget, unassignedNotes, wouldCycle } from "../src/lib/candidates.ts";
-import { buildInsights, REQUIREMENTS, requirementsExport } from "../src/dev/insights.ts";
+import { buildCandidates, candidatesExport, resolveTarget, wouldCycle } from "../src/lib/candidates.ts";
 import type { ResponseRow } from "../src/lib/answers.ts";
-import type { Decision, Review } from "../src/dev/data.ts";
+import type { Review } from "../src/dev/data.ts";
 
-const row = (i: number, answers: ResponseRow["answers"], version = 5): ResponseRow => ({
+const row = (i: number, answers: ResponseRow["answers"]): ResponseRow => ({
   id: `r${i}`,
-  submitted_at: `2026-10-2${i}T00:00:00Z`,
+  submitted_at: `2026-11-0${i}T00:00:00Z`,
   duration_seconds: 100,
-  questions_version: version,
+  questions_version: 1,
   answers,
 });
 
 const rows = [
-  row(1, { q14: ["Sword fern", "Salal"], q15: { plant: "Sword fern", text: "Sword fern for dry shade." }, q3: { selected: ["site_suitability"] }, q7: { hardiness: "rule" } }),
-  row(2, { q14: ["Polystichum munitum", "Vine maple"], q15: { plant: "", text: "" }, q3: { selected: ["site_suitability", "growth_size"] }, q7: { hardiness: "rule" } }),
-  row(3, { q14: ["salal", "Sword  fern"], q15: "Salal under conifers.", q3: { selected: ["growth_size"] }, q7: { na: "yes" } }, 2),
-  row(4, { q14: ["Salal"], q15: { plant: "Thuja plicata", text: "Names a plant not on the list." } }),
-  // Could not name plants: must not appear as a recommender of anything.
-  row(5, { q14: { not_applicable: true, entries: ["Salal", "Sword fern"] }, q15: { not_applicable: true } }),
+  row(1, { f1: { entries: [{ name: "Sword fern", role: "perennial_grass", why: "evergreen" }, { name: "Salal", role: "shrub" }] }, f2: { plant: "Sword fern", text: "Sword fern for dry shade." } }),
+  row(2, { f1: { entries: [{ name: "Polystichum munitum", role: "perennial_grass" }, { name: "Vine maple", role: "tree" }] }, f2: { plant: "", text: "" } }),
+  row(3, { f1: { entries: [{ name: "salal", role: "groundcover", why: "spreads" }, { name: "Sword  fern", role: "perennial_grass" }] }, f2: { plant: "salal", text: "Salal under conifers." } }),
+  row(4, { f1: { not_applicable: true, entries: [{ name: "Salal", role: "shrub" }] }, f2: { not_applicable: true } }),
 ];
 
-test("a note is attached only to the plant the respondent chose", () => {
+test("candidates group by name, count respondents, keep roles and reasons, attach notes only to the chosen plant", () => {
   const c = buildCandidates(rows, []);
-  const fern = c.find((x) => x.key === "sword fern")!;
   const salal = c.find((x) => x.key === "salal")!;
+  assert.equal(salal.mentions, 2, "the not-applicable respondent is not a mention");
+  assert.deepEqual(salal.roles, { shrub: 1, groundcover: 1 });
+  assert.deepEqual(salal.raw_names.sort(), ["Salal", "salal"]);
+  assert.equal(salal.sources.find((s) => s.response_id === "r3")?.note, "Salal under conifers.");
+  assert.equal(salal.sources.find((s) => s.response_id === "r3")?.why, "spreads");
+  assert.equal(salal.sources.find((s) => s.response_id === "r1")?.note, null, "r1’s note is about sword fern, not salal");
+  const fern = c.find((x) => x.key === "sword fern")!;
+  assert.equal(fern.mentions, 2);
   assert.equal(fern.notes_count, 1);
-  assert.equal(fern.sources.find((s) => s.response_id === "r1")?.note, "Sword fern for dry shade.");
-  assert.equal(salal.sources.find((s) => s.response_id === "r1")?.note, null, "the same respondent’s note must not appear under their other plant");
-  assert.equal(salal.notes_count, 0);
-  assert.equal(salal.mentions, 3, "the not-applicable respondent’s typed names are not mentions");
-  assert.ok(!c.some((x) => x.sources.some((s) => s.response_id === "r5")));
-  assert.ok(!unassignedNotes(rows).some((n) => n.response_id === "r5"));
+  assert.ok(!c.some((x) => x.sources.some((s) => s.response_id === "r4")));
 });
 
-test("old-format notes and notes naming an unlisted plant are unassigned", () => {
-  const u = unassignedNotes(rows);
-  assert.deepEqual(u.map((n) => n.response_id), ["r3", "r4"]);
-  assert.equal(u[0].text, "Salal under conifers.");
-  assert.deepEqual(u[0].listed, ["salal", "Sword fern"]);
-});
-
-test("a merge folds mentions, spellings and attached notes into the target", () => {
+test("a merge folds mentions, roles and notes into the target", () => {
   const reviews: Review[] = [
     { name_key: "polystichum munitum", reviewed_name: null, status: "candidate", merged_into: "sword fern", notes: null },
     { name_key: "sword fern", reviewed_name: "Polystichum munitum (sword fern)", status: "shortlisted", merged_into: null, notes: "Common in the region" },
@@ -53,6 +45,7 @@ test("a merge folds mentions, spellings and attached notes into the target", () 
   assert.equal(fern.name, "Polystichum munitum (sword fern)");
   assert.equal(fern.status, "shortlisted");
   assert.deepEqual(fern.merged_from, ["polystichum munitum"]);
+  assert.equal(fern.roles.perennial_grass, 3);
   assert.ok(!c.some((x) => x.key === "polystichum munitum"));
 });
 
@@ -61,44 +54,18 @@ test("circular merges are detected and never hang", () => {
     ["a", { name_key: "a", reviewed_name: null, status: "candidate", merged_into: "b", notes: null }],
     ["b", { name_key: "b", reviewed_name: null, status: "candidate", merged_into: null, notes: null }],
   ]);
-  assert.equal(wouldCycle("b", "a", reviews), true, "b → a would loop because a already points to b");
+  assert.equal(wouldCycle("b", "a", reviews), true);
   assert.equal(wouldCycle("a", "a", reviews), true);
   assert.equal(wouldCycle("c", "a", reviews), false);
   reviews.get("b")!.merged_into = "a";
-  assert.ok(["a", "b"].includes(resolveTarget("a", reviews)), "an existing loop still resolves to something");
+  assert.ok(["a", "b"].includes(resolveTarget("a", reviews)));
 });
 
-test("candidate export separates respondent-provided from researcher-reviewed", () => {
-  const out = candidatesExport(buildCandidates(rows, []), unassignedNotes(rows), { questions_version: 5, responses: 5, filter: { version: 5 } });
-  const fern = out.candidates.find((c) => c.key === "sword fern")!;
-  assert.equal(fern.respondent_provided.sources[0].attached_note, "Sword fern for dry shade.");
-  assert.equal(fern.researcher_reviewed.status, "candidate");
-  assert.equal(out.unassigned_notes.length, 2);
-  assert.deepEqual(out.filter, { version: 5 });
-});
-
-test("requirement catalogue has unique ids and only known evidence", () => {
-  const ids = REQUIREMENTS.map((r) => r.id);
-  assert.equal(new Set(ids).size, ids.length);
-  for (const r of REQUIREMENTS) assert.ok(r.evidence.length > 0, r.id);
-});
-
-test("insights keep evidence, suggestion and decision apart; Q7 stays a distribution; decisions round-trip to the export", () => {
-  const decisions: Decision[] = [{ requirement_id: "attr.hardiness_zone", status: "include", rationale: "Needed for any Vancouver list", updated_by: "o@x", updated_at: "2026-10-29T00:00:00Z" }];
-  const dims = buildInsights(rows, decisions);
-  const attributes = dims.find((d) => d.id === "attributes")!;
-  const zone = attributes.requirements.find((r) => r.id === "attr.hardiness_zone")!;
-  assert.equal(zone.decision.status, "include");
-  assert.equal(zone.core, true);
-  const q7evidence = zone.evidence_results.find((e) => "row" in e.ref)!;
-  assert.ok(q7evidence.distribution, "grid evidence is a distribution, not a rule");
-  assert.equal(q7evidence.n, 2, "not-applicable respondent excluded from the row denominator");
-  const undecided = attributes.requirements.find((r) => r.id === "attr.spacing")!;
-  assert.equal(undecided.decision.status, "proposed");
-  const out = requirementsExport(rows, decisions, { version: 5 });
-  const exported = out.dimensions.flatMap((d) => d.requirements).find((r) => r.id === "attr.hardiness_zone")!;
-  assert.equal(exported.research_decision.status, "include");
-  assert.equal(exported.research_decision.rationale, "Needed for any Vancouver list");
-  assert.equal(exported.category, "plant attribute");
-  assert.ok(out.notes.some((n) => n.startsWith("Q7 rows")));
+test("export separates respondent-provided from researcher-reviewed and carries version 1", () => {
+  const out = candidatesExport(buildCandidates(rows, []), { questions_version: 1, responses: 4, filter: { roles: [] } });
+  assert.equal(out.questions_version, 1);
+  const salal = out.candidates.find((c) => c.key === "salal")!;
+  assert.equal(salal.respondent_provided.mentions, 2);
+  assert.equal(salal.respondent_provided.sources[0].role, "shrub");
+  assert.equal(salal.researcher_reviewed.status, "candidate");
 });

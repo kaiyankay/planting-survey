@@ -1,5 +1,6 @@
-import type { PlantNoteQuestion as PlantNoteQ, TextListQuestion as TextListQ } from "../questions.ts";
-import { readList, readPlantNote, type Answer, type PlantNoteAnswer, type TextListAnswer } from "../lib/answers.ts";
+import { useState } from "react";
+import type { LongTextQuestion as LongTextQ, PlantListQuestion as PlantListQ, PlantNoteQuestion as PlantNoteQ, ShortTextQuestion as ShortTextQ } from "../questions.ts";
+import { readPlantList, readPlantNote, readText, type Answer, type PlantEntry, type PlantListAnswer, type PlantNoteAnswer } from "../lib/answers.ts";
 import { Check, inputClass, rowClass } from "./ChoiceQuestion.tsx";
 
 /** The not-applicable row: same block as any option, filled with a check when on. */
@@ -14,50 +15,98 @@ function NaRow({ on, label, onToggle }: { on: boolean; label: string; onToggle: 
   );
 }
 
+function Counter({ length, max }: { length: number; max: number }) {
+  return (
+    <p className="mt-1 text-right text-[13px] text-mute">
+      {length} / {max}
+    </p>
+  );
+}
+
+/** One or two lines of text. */
+export function ShortTextQuestion({ question, answer, onChange }: { question: ShortTextQ; answer: Answer | undefined; onChange: (a: string) => void }) {
+  const value = typeof answer === "string" ? answer : "";
+  return (
+    <div>
+      <textarea
+        value={value}
+        maxLength={question.maxLength}
+        rows={question.lines ?? 1}
+        aria-label={question.text}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${inputClass} resize-y`}
+      />
+      <Counter length={value.length} max={question.maxLength} />
+    </div>
+  );
+}
+
+/** Several sentences, with a folded grey example above the box. */
+export function LongTextQuestion({ question, answer, onChange }: { question: LongTextQ; answer: Answer | undefined; onChange: (a: string) => void }) {
+  const value = typeof answer === "string" ? answer : "";
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <div className="mb-3">
+        <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-[13px] text-mute underline underline-offset-2 hover:text-ink">
+          {open ? "Hide example" : "Example (yours can be very different)"}
+        </button>
+        {open && <p className="mt-2 max-w-[36rem] rounded-md bg-chip px-3 py-2 text-[14px] leading-relaxed text-mute">{question.example}</p>}
+      </div>
+      <textarea
+        value={value}
+        maxLength={question.maxLength}
+        rows={6}
+        aria-label={question.text}
+        onChange={(e) => onChange(e.target.value)}
+        className={`${inputClass} resize-y`}
+      />
+      <Counter length={value.length} max={question.maxLength} />
+    </div>
+  );
+}
+
 /**
- * Up to five plant names, or the admission that the respondent cannot name
- * enough yet. Choosing the latter disables the fields but keeps what was typed,
- * so unticking it brings the names back.
+ * Up to five plants, each with a name, a role and an optional reason, or the
+ * admission that none apply. Choosing the latter disables the rows but keeps
+ * what was typed, so unticking it brings the rows back.
  */
-export function TextListQuestion({
-  question,
-  answer,
-  onChange,
-}: {
-  question: TextListQ;
-  answer: Answer | undefined;
-  onChange: (a: TextListAnswer) => void;
-}) {
-  const raw = Array.isArray(answer) ? answer : answer && typeof answer === "object" && "entries" in answer ? (answer as { entries: string[] }).entries : [];
-  const na = readList(answer).notApplicable;
-  const values = Array.from({ length: question.count }, (_, i) => raw[i] ?? "");
+export function PlantListQuestion({ question, answer, onChange }: { question: PlantListQ; answer: Answer | undefined; onChange: (a: PlantListAnswer) => void }) {
+  const raw: PlantEntry[] = answer && typeof answer === "object" && "entries" in answer && Array.isArray((answer as PlantListAnswer).entries) ? (answer as PlantListAnswer).entries : [];
+  const na = readPlantList(answer).notApplicable;
+  const rows: PlantEntry[] = Array.from({ length: question.count }, (_, i) => raw[i] ?? { name: "", role: "", why: "" });
+  const update = (i: number, patch: Partial<PlantEntry>) => {
+    const next = rows.map((r, j) => (j === i ? { ...r, ...patch } : r));
+    onChange(na ? { not_applicable: true, entries: next } : { entries: next });
+  };
   return (
     <div className="space-y-4">
-      <div className={`max-w-[24rem] space-y-2.5 ${na ? "opacity-40" : ""}`}>
-        {values.map((v, i) => (
-          <label key={i} className="block">
-            <span className="mb-1 block text-[13px] text-mute">
-              {question.labelPrefix} {i + 1}
-            </span>
-            <input
-              type="text"
-              value={v}
-              maxLength={80}
-              autoComplete="off"
-              disabled={na}
-              onChange={(e) => {
-                const next = [...values];
-                next[i] = e.target.value;
-                onChange(next);
-              }}
-              className={inputClass}
-            />
-          </label>
+      <div className={`space-y-3 ${na ? "opacity-40" : ""}`}>
+        {rows.map((r, i) => (
+          <div key={i} className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1.2fr)_minmax(9rem,0.8fr)_minmax(0,1.4fr)]">
+            <label className="block">
+              <span className="mb-1 block text-[13px] text-mute">Plant {i + 1}</span>
+              <input type="text" value={r.name} maxLength={80} autoComplete="off" disabled={na} onChange={(e) => update(i, { name: e.target.value })} className={inputClass} />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[13px] text-mute">Role</span>
+              <select value={r.role} disabled={na} onChange={(e) => update(i, { role: e.target.value })} className={inputClass}>
+                <option value="">Choose…</option>
+                {question.roles.map((role) => (
+                  <option key={role.key} value={role.key}>
+                    {role.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[13px] text-mute">Why, in one line</span>
+              <input type="text" value={r.why ?? ""} maxLength={160} autoComplete="off" disabled={na} onChange={(e) => update(i, { why: e.target.value })} className={inputClass} />
+            </label>
+          </div>
         ))}
       </div>
-      {question.notApplicable && (
-        <NaRow on={na} label={question.notApplicable} onToggle={() => onChange(na ? values : { not_applicable: true, entries: values })} />
-      )}
+      <NaRow on={na} label={question.notApplicable} onToggle={() => onChange(na ? { entries: rows } : { not_applicable: true, entries: rows })} />
     </div>
   );
 }
@@ -66,9 +115,8 @@ const LETTERS = "ABCDE";
 
 /**
  * A note about one plant: the respondent first picks which of their own
- * plants it is about (the non-empty entries of the source question), then
- * writes. When the plant list is marked not applicable, the only choice here
- * is to say the same.
+ * plants it is about, then writes. When the plant list is marked not
+ * applicable, the only choice here is to say the same.
  */
 export function PlantNoteQuestion({
   question,
@@ -79,20 +127,14 @@ export function PlantNoteQuestion({
 }: {
   question: PlantNoteQ;
   answer: Answer | undefined;
-  /** Non-empty plant names from the source question, in order. */
+  /** Plant names from the source question, in order. */
   plants: string[];
   sourceNotApplicable: boolean;
   onChange: (a: PlantNoteAnswer) => void;
 }) {
   const note = readPlantNote(answer);
   if (sourceNotApplicable) {
-    return (
-      <NaRow
-        on={note.notApplicable}
-        label={question.notApplicable}
-        onToggle={() => onChange(note.notApplicable ? { plant: "", text: "" } : { not_applicable: true })}
-      />
-    );
+    return <NaRow on={note.notApplicable} label={question.notApplicable} onToggle={() => onChange(note.notApplicable ? { plant: "", text: "" } : { not_applicable: true })} />;
   }
   const chosen = note.plant && plants.includes(note.plant) ? note.plant : "";
   return (
@@ -128,15 +170,15 @@ export function PlantNoteQuestion({
         <textarea
           value={note.text}
           maxLength={question.maxLength}
-          rows={3}
+          rows={4}
           aria-label={question.text}
           onChange={(e) => onChange({ plant: chosen, text: e.target.value })}
           className={`${inputClass} resize-y`}
         />
-        <p className="mt-1 text-right text-[13px] text-mute">
-          {note.text.length} / {question.maxLength}
-        </p>
+        <Counter length={note.text.length} max={question.maxLength} />
       </div>
     </div>
   );
 }
+
+export { readText };

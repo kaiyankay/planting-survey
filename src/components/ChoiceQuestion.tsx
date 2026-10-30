@@ -7,8 +7,6 @@ type Props = {
   question: CheckboxQuestion | SingleQuestion;
   answer: ChoiceAnswer | undefined;
   onChange: (a: ChoiceAnswer) => void;
-  /** Options flagged noExperienceOnly are shown only when this is true. */
-  noExperience: boolean;
 };
 
 const LETTERS = "ABCDEFGHIJKLMNOP";
@@ -28,9 +26,8 @@ export function Check() {
   );
 }
 
-export function ChoiceQuestion({ question, answer, onChange, noExperience }: Props) {
-  const ordered = useMemo(() => orderOptions(question.options, question.shuffle), [question]);
-  const options = ordered.filter((o) => !o.noExperienceOnly || noExperience);
+export function ChoiceQuestion({ question, answer, onChange }: Props) {
+  const options = useMemo(() => orderOptions(question.options, question.shuffle), [question]);
   const selected = answer?.selected ?? [];
   const other = answer?.other ?? "";
   const single = question.kind === "single";

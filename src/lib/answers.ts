@@ -1,32 +1,21 @@
 /**
  * Answer shapes as stored in the `answers` jsonb column, plus the pure
- * functions shared by the app (validation) and the exports (CSV).
+ * functions shared by the app (visibility, validation) and the exports (CSV).
  * No React or browser APIs in here.
  */
-import { ALL_QUESTIONS, type Question } from "../questions.ts";
+import { ALL_QUESTIONS, EXPERIENCE, SECTIONS, type PlantListQuestion, type PlantNoteQuestion, type Question } from "../questions.ts";
 
 export type ChoiceAnswer = { selected: string[]; other?: string };
-/** Row key → column key. The reserved key `na` set to "yes" marks the grid as not applicable. */
+/** Row key → column key. */
 export type GridAnswer = Record<string, string>;
-/**
- * A plant list: the names as typed (versions 1–4 stored the bare array).
- * From version 5 a respondent may instead say they cannot name enough
- * plants yet; the names they had typed are kept so they can change their mind.
- */
-export type TextListAnswer = string[] | { not_applicable: true; entries: string[] };
-/**
- * Version 3+: which of the respondent’s own plants the note is about, and the
- * note. Version 5 adds the not-applicable form, only valid when the plant list
- * itself is not applicable.
- */
+export type TextAnswer = string;
+export type PlantEntry = { name: string; role: string; why?: string };
+/** The plant rows as typed, or the admission that none apply (typed rows are kept so the respondent can change their mind). */
+export type PlantListAnswer = { not_applicable?: true; entries: PlantEntry[] };
 export type PlantNoteAnswer = { plant: string; text: string } | { not_applicable: true };
-/** Versions 1 and 2 stored the note alone, with no plant attached. */
-export type LegacyTextAnswer = string;
 
-export type Answer = ChoiceAnswer | GridAnswer | TextListAnswer | PlantNoteAnswer | LegacyTextAnswer;
+export type Answer = ChoiceAnswer | GridAnswer | TextAnswer | PlantListAnswer | PlantNoteAnswer;
 export type Answers = Record<string, Answer>;
-
-export const GRID_NA = "na";
 
 /** Case- and whitespace-insensitive key for comparing plant names. Nothing more: no fuzzy matching. */
 export function normalizePlantName(raw: string): string {
@@ -40,28 +29,36 @@ export function normalizePlantName(raw: string): string {
 
 const clean = (s: unknown) => (typeof s === "string" ? s.trim().replace(/\s+/g, " ") : "");
 
-/** Reads a plant list in either format. */
-export function readList(a: Answer | undefined): { entries: string[]; notApplicable: boolean } {
-  if (a == null) return { entries: [], notApplicable: false };
-  if (Array.isArray(a)) return { entries: a.map(clean).filter(Boolean), notApplicable: false };
-  if (typeof a === "object" && "not_applicable" in a && "entries" in a) {
-    return { entries: ((a as { entries: unknown[] }).entries ?? []).map(clean).filter(Boolean), notApplicable: true };
-  }
-  return { entries: [], notApplicable: false };
+// ---------------------------------------------------------------------------
+// Reading answers
+// ---------------------------------------------------------------------------
+
+export function readText(a: Answer | undefined): string {
+  return typeof a === "string" ? a.trim() : "";
 }
 
-/** Non-empty entries of a plant list, trimmed, in order. Empty when the list is marked not applicable. */
-export function listEntries(a: Answer | undefined): string[] {
-  const l = readList(a);
-  return l.notApplicable ? [] : l.entries;
+/** Rows with a name, cleaned, in order; plus whether the list was marked not applicable. */
+export function readPlantList(a: Answer | undefined): { entries: PlantEntry[]; notApplicable: boolean } {
+  if (!a || typeof a !== "object" || Array.isArray(a) || !("entries" in a)) return { entries: [], notApplicable: false };
+  const raw = Array.isArray((a as PlantListAnswer).entries) ? (a as PlantListAnswer).entries : [];
+  const entries = raw
+    .map((e) => ({ name: clean(e?.name), role: clean(e?.role), why: clean(e?.why) || undefined }))
+    .filter((e) => e.name.length > 0);
+  return { entries, notApplicable: (a as PlantListAnswer).not_applicable === true };
 }
 
-/** Entries with duplicates removed, comparing without case or extra spaces; the first spelling is kept. */
-export function distinctEntries(entries: string[]): string[] {
+/** Plant names from a list, empty when the list is not applicable. */
+export function plantNames(a: Answer | undefined): string[] {
+  const l = readPlantList(a);
+  return l.notApplicable ? [] : l.entries.map((e) => e.name);
+}
+
+/** Entries with duplicate names removed, comparing without case or extra spaces; the first spelling is kept. */
+export function distinctEntries(entries: PlantEntry[]): PlantEntry[] {
   const seen = new Set<string>();
-  const out: string[] = [];
+  const out: PlantEntry[] = [];
   for (const e of entries) {
-    const key = normalizePlantName(e);
+    const key = normalizePlantName(e.name);
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push(e);
@@ -69,61 +66,89 @@ export function distinctEntries(entries: string[]): string[] {
   return out;
 }
 
-/** Reads a plant note in any format. `plant` is null when no plant is attached. */
-export function readPlantNote(a: Answer | undefined): { plant: string | null; text: string; legacy: boolean; notApplicable: boolean } {
-  if (a == null) return { plant: null, text: "", legacy: false, notApplicable: false };
-  if (typeof a === "string") return { plant: null, text: a.trim(), legacy: true, notApplicable: false };
-  if (typeof a === "object" && !Array.isArray(a)) {
-    if ("not_applicable" in a && !("entries" in a)) return { plant: null, text: "", legacy: false, notApplicable: true };
-    if ("text" in a) {
-      const p = clean((a as { plant?: string }).plant);
-      return { plant: p ? p : null, text: ((a as { text?: string }).text ?? "").trim(), legacy: false, notApplicable: false };
-    }
+export function readPlantNote(a: Answer | undefined): { plant: string | null; text: string; notApplicable: boolean } {
+  if (!a || typeof a !== "object" || Array.isArray(a)) return { plant: null, text: "", notApplicable: false };
+  if ("not_applicable" in a && !("entries" in a) && !("text" in a)) return { plant: null, text: "", notApplicable: true };
+  if ("text" in a) {
+    const p = clean((a as { plant?: string }).plant);
+    return { plant: p || null, text: ((a as { text?: string }).text ?? "").trim(), notApplicable: false };
   }
-  return { plant: null, text: "", legacy: false, notApplicable: false };
+  return { plant: null, text: "", notApplicable: false };
 }
 
-/** Whether the note’s plant is on the respondent’s own list (when the whole answer set is available). */
-function plantOnList(q: Question & { kind: "plantnote" }, plant: string | null, all?: Answers): boolean {
-  if (!plant) return false;
-  if (!all) return true;
-  return listEntries(all[q.sourceQuestion]).some((x) => normalizePlantName(x) === normalizePlantName(plant));
+// ---------------------------------------------------------------------------
+// Which questions a respondent is asked
+// ---------------------------------------------------------------------------
+
+/** False only when the experience question was answered with “None yet” alone. */
+export function hasExperience(answers: Answers): boolean {
+  const sel = (answers[EXPERIENCE.question] as ChoiceAnswer | undefined)?.selected ?? [];
+  return !(sel.length === 1 && sel[0] === EXPERIENCE.none);
+}
+
+export function isShown(q: Question, answers: Answers): boolean {
+  if (hasExperience(answers)) return true;
+  const section = SECTIONS.find((s) => s.questions.includes(q));
+  return !(q.requiresExperience || section?.requiresExperience);
+}
+
+/** The questions this respondent is asked, in order. Page numbers follow this list. */
+export function visibleQuestions(answers: Answers): Question[] {
+  return ALL_QUESTIONS.filter((q) => isShown(q, answers));
+}
+
+/** Whether a question must be answered before submitting. */
+export function isRequired(q: Question): boolean {
+  return q.kind === "shorttext" || q.kind === "longtext" ? q.required : true;
+}
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+function plantListComplete(q: PlantListQuestion, a: Answer | undefined): boolean {
+  const l = readPlantList(a);
+  if (l.notApplicable) return true;
+  const roles = new Set(q.roles.map((r) => r.key));
+  return distinctEntries(l.entries).filter((e) => roles.has(e.role)).length >= q.min;
+}
+
+function plantNoteComplete(q: PlantNoteQuestion, a: Answer | undefined, all?: Answers): boolean {
+  const note = readPlantNote(a);
+  const source = all ? readPlantList(all[q.sourceQuestion]) : null;
+  if (source?.notApplicable) return note.notApplicable;
+  if (note.notApplicable || !note.text || !note.plant) return false;
+  if (!source) return true;
+  return source.entries.some((e) => normalizePlantName(e.name) === normalizePlantName(note.plant!));
 }
 
 /**
- * True when the question has enough of an answer to count as done. Every
- * question is required. Pass all answers so a plant note can be judged
- * against the plant list it depends on.
+ * True when the question is answered well enough to submit. Optional text
+ * questions are always complete. Pass all answers so a plant note can be
+ * judged against the list it depends on.
  */
 export function isComplete(q: Question, a: Answer | undefined, all?: Answers): boolean {
   switch (q.kind) {
     case "checkbox":
-    case "single": {
-      const c = a as ChoiceAnswer | undefined;
-      return Boolean(c && c.selected.length > 0);
-    }
-    case "grid": {
+    case "single":
+      return ((a as ChoiceAnswer | undefined)?.selected.length ?? 0) > 0;
+    case "grid3": {
       const g = (a as GridAnswer | undefined) ?? {};
-      if (g[GRID_NA] === "yes") return true;
       return q.rows.every((r) => Boolean(g[r.key]));
     }
-    case "textlist": {
-      const l = readList(a);
-      return l.notApplicable || distinctEntries(l.entries).length >= q.min;
-    }
-    case "plantnote": {
-      const note = readPlantNote(a);
-      const sourceNa = all ? readList(all[q.sourceQuestion]).notApplicable : false;
-      // Path B: the list is not applicable, so the note must say so too.
-      if (sourceNa) return note.notApplicable;
-      // Path A: a real note about a plant that is still on the list.
-      return !note.notApplicable && note.text.length > 0 && plantOnList(q, note.plant, all);
-    }
+    case "shorttext":
+    case "longtext":
+      return q.required ? readText(a).length > 0 : true;
+    case "plantlist":
+      return plantListComplete(q, a);
+    case "plantnote":
+      return plantNoteComplete(q, a, all);
   }
 }
 
-/** Same as isComplete: only a finished question counts as answered. */
+/** Counts towards progress: a complete answer, or for optional text any text at all. */
 export function hasAnswer(q: Question, a: Answer | undefined, all?: Answers): boolean {
+  if ((q.kind === "shorttext" || q.kind === "longtext") && !q.required) return readText(a).length > 0;
   return isComplete(q, a, all);
 }
 
@@ -134,19 +159,44 @@ export function missingHint(q: Question, a?: Answer, all?: Answers): string {
       return "Choose at least one";
     case "single":
       return "Choose one";
-    case "grid":
+    case "grid3":
       return "Answer each row";
-    case "textlist": {
-      const l = readList(a);
-      if (l.entries.length >= q.min && distinctEntries(l.entries).length < q.min) return `Please list ${q.min} different plants`;
-      return `Please list at least ${q.min} plants`;
+    case "shorttext":
+    case "longtext":
+      return "Please write something here";
+    case "plantlist": {
+      const l = readPlantList(a);
+      const roles = new Set(q.roles.map((r) => r.key));
+      const distinct = distinctEntries(l.entries);
+      if (l.entries.length >= q.min && distinct.length < q.min) return `Please list ${q.min} different plants`;
+      if (distinct.length >= q.min && distinct.filter((e) => roles.has(e.role)).length < q.min) return "Choose a role for each plant";
+      return `Please list at least ${q.min} plants, each with a role`;
     }
     case "plantnote": {
-      const sourceNa = all ? readList(all[q.sourceQuestion]).notApplicable : false;
+      const sourceNa = all ? readPlantList(all[q.sourceQuestion]).notApplicable : false;
       if (sourceNa) return "Tick the option above to continue";
-      return "Choose one of your plants above and write a few words about it";
+      return "Choose one of your plants above and write the note";
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Submission and export
+// ---------------------------------------------------------------------------
+
+/** The answers to store: only the questions this respondent was shown. Hidden questions are omitted. */
+export function answersToStore(answers: Answers): Answers {
+  const out: Answers = {};
+  for (const q of visibleQuestions(answers)) {
+    const a = answers[q.id];
+    if (a === undefined) continue;
+    // Plant rows left empty are just unused rows, not answers.
+    if (q.kind === "plantlist") {
+      const l = readPlantList(a);
+      out[q.id] = l.notApplicable ? { not_applicable: true, entries: l.entries } : { entries: l.entries };
+    } else out[q.id] = a;
+  }
+  return out;
 }
 
 /** CSV column headers, in order, for the flattened export. */
@@ -154,11 +204,11 @@ export function csvColumns(): string[] {
   const cols = ["id", "submitted_at", "duration_seconds", "questions_version"];
   for (const q of ALL_QUESTIONS) {
     switch (q.kind) {
-      case "grid":
+      case "grid3":
         for (const r of q.rows) cols.push(`${q.id}_${r.key}`);
         break;
-      case "textlist":
-        for (let i = 1; i <= q.count; i++) cols.push(`${q.id}_${i}`);
+      case "plantlist":
+        for (let i = 1; i <= q.count; i++) cols.push(`${q.id}_${i}_name`, `${q.id}_${i}_role`, `${q.id}_${i}_why`);
         cols.push(`${q.id}_not_applicable`);
         break;
       case "plantnote":
@@ -187,11 +237,9 @@ export type ResponseRow = {
 };
 
 /**
- * Flattens one stored response into a string per CSV column. Answer keys that
- * no longer exist in the questionnaire (for example q12 and q13 from version 1)
- * are left out rather than mapped onto other columns. A version 1 or 2 plant
- * note has no plant, so its plant column reads "Unassigned". A plant list or
- * note marked not applicable says "Not applicable"; an unanswered one is blank.
+ * Flattens one stored response into a string per CSV column. Questions the
+ * respondent was not shown are blank; a plant list or note marked not
+ * applicable says "Not applicable".
  */
 export function flattenResponse(row: ResponseRow): Record<string, string> {
   const out: Record<string, string> = {
@@ -210,25 +258,30 @@ export function flattenResponse(row: ResponseRow): Record<string, string> {
         out[q.id] = c ? c.selected.map((k) => labelOf(q, k, c.other)).join(" | ") : "";
         break;
       }
-      case "grid": {
+      case "grid3": {
         const g = (a as GridAnswer | undefined) ?? {};
-        const na = g[GRID_NA] === "yes";
-        for (const r of q.rows) {
-          const col = q.columns.find((c) => c.key === g[r.key]);
-          out[`${q.id}_${r.key}`] = na ? "Not applicable" : col ? col.label : "";
-        }
+        for (const r of q.rows) out[`${q.id}_${r.key}`] = q.columns.find((c) => c.key === g[r.key])?.label ?? "";
         break;
       }
-      case "textlist": {
-        const l = readList(a);
-        const raw = Array.isArray(a) ? a : l.notApplicable ? (a as { entries: string[] }).entries ?? [] : [];
-        for (let i = 1; i <= q.count; i++) out[`${q.id}_${i}`] = l.notApplicable ? "" : clean(raw[i - 1]);
+      case "shorttext":
+      case "longtext":
+        out[q.id] = readText(a);
+        break;
+      case "plantlist": {
+        const l = readPlantList(a);
+        const roleLabel = (k: string) => q.roles.find((r) => r.key === k)?.label ?? k;
+        for (let i = 1; i <= q.count; i++) {
+          const e = l.notApplicable ? undefined : l.entries[i - 1];
+          out[`${q.id}_${i}_name`] = e?.name ?? "";
+          out[`${q.id}_${i}_role`] = e ? roleLabel(e.role) : "";
+          out[`${q.id}_${i}_why`] = e?.why ?? "";
+        }
         out[`${q.id}_not_applicable`] = l.notApplicable ? "Not applicable" : "";
         break;
       }
       case "plantnote": {
         const n = readPlantNote(a);
-        out[`${q.id}_plant`] = n.notApplicable ? "Not applicable" : n.text ? (n.plant ?? "Unassigned") : "";
+        out[`${q.id}_plant`] = n.notApplicable ? "Not applicable" : (n.plant ?? "");
         out[q.id] = n.text;
         break;
       }
@@ -238,12 +291,13 @@ export function flattenResponse(row: ResponseRow): Record<string, string> {
 }
 
 export function toCsv(rows: ResponseRow[]): string {
-  const cols = csvColumns();
+  return csvOf(csvColumns(), rows.map(flattenResponse));
+}
+
+/** Generic CSV writer: the same escaping for every export. */
+export function csvOf(cols: string[], records: Record<string, string>[]): string {
   const esc = (v: string) => (/[",\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v);
   const lines = [cols.join(",")];
-  for (const row of rows) {
-    const flat = flattenResponse(row);
-    lines.push(cols.map((c) => esc(flat[c] ?? "")).join(","));
-  }
+  for (const r of records) lines.push(cols.map((c) => esc(r[c] ?? "")).join(","));
   return lines.join("\r\n") + "\r\n";
 }
